@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RouterPilot | مرکز هوشمند مدیریت روتر</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
+</head>
+<body>
+
+  <!-- Right Sidebar (RTL) -->
+  <aside class="sidebar">
+    <div class="brand-header">
+      <div class="brand-logo">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+          <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+          <line x1="6" y1="6" x2="6.01" y2="6"></line>
+          <line x1="6" y1="18" x2="6.01" y2="18"></line>
+        </svg>
+      </div>
+      <div class="brand-title">
+        <h1>RouterPilot</h1>
+        <span>نسخه ۱.۰ | ویندوز پرتابل</span>
+      </div>
+    </div>
+
+    <ul class="nav-links">
+      <li>
+        <a class="nav-item active" data-tab="dashboard">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+          داشبورد زنده
+        </a>
+      </li>
+      <li>
+        <a class="nav-item" data-tab="discovery">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          شناسایی خودکار (Discovery)
+        </a>
+      </li>
+      <li>
+        <a class="nav-item" data-tab="plan">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          موتور پلن و تغییرات (Plan)
+        </a>
+      </li>
+      <li>
+        <a class="nav-item" data-tab="profiles">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+          پروفایل‌های شبکه
+        </a>
+      </li>
+      <li>
+        <a class="nav-item" data-tab="mihomo">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
+          مرکز کانتینر Mihomo
+        </a>
+      </li>
+      <li>
+        <a class="nav-item" data-tab="ai">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2z"></path><path d="M12 8v4"></path><path d="M12 16h.01"></path></svg>
+          مشاور هوشمند (AI Advisor)
+        </a>
+      </li>
+      <li>
+        <a class="nav-item" data-tab="audit">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+          لاگ و ممیزی (Audit)
+        </a>
+      </li>
+      <li>
+        <a class="nav-item" data-tab="settings">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          تنظیمات و امنیت
+        </a>
+      </li>
+    </ul>
+
+    <div style="padding-top:16px; border-top:1px solid var(--glass-border); font-size:0.75rem; color:var(--text-muted); text-align:center;">
+      طراحی شده برای کنترل امن روترها
+    </div>
+  </aside>
+
+  <!-- Main Content Viewport -->
+  <main class="main-content">
+    
+    <!-- Top Bar -->
+    <header class="topbar">
+      <div class="topbar-info">
+        <div id="router-status-badge" class="status-badge">
+          <span class="status-dot"></span>
+          <span>در حال بررسی روتر...</span>
+        </div>
+        <div class="status-badge" style="color:var(--primary);">
+          <span>گیت‌وی فعال:</span>
+          <strong id="val-active-wan" class="font-mono">WAN-1 (MobinNet)</strong>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <button id="btn-manual-failover" class="btn btn-outline">
+          🔄 سوئیچ دستی خط اینترنت
+        </button>
+        <button id="btn-quick-backup" class="btn btn-primary">
+          🛡️ بک‌آپ سریع روتر
+        </button>
+      </div>
+    </header>
+
+    <div class="content-body">
+
+      <!-- TAB 1: DASHBOARD -->
+      <section id="tab-dashboard" class="tab-pane active">
+        <!-- Stats Grid -->
+        <div class="stats-grid">
+          <div class="glass-panel stat-card">
+            <div class="stat-header"><span>مدل سخت‌افزار</span><span>⚡</span></div>
+            <div class="stat-value" id="val-router-model">RB5009UG+S+IN</div>
+            <div class="stat-sub" id="val-router-arch">arm64 (4 Cores)</div>
+          </div>
+          <div class="glass-panel stat-card">
+            <div class="stat-header"><span>میزان بار پردازنده (CPU)</span><span>📊</span></div>
+            <div class="stat-value" id="val-cpu-load">12%</div>
+            <div class="stat-sub">وضعیت بهینه و خنک</div>
+          </div>
+          <div class="glass-panel stat-card">
+            <div class="stat-header"><span>حافظه موقت (RAM)</span><span>💾</span></div>
+            <div class="stat-value" id="val-ram-usage" style="font-size:1.3rem;">786 MB آزاد</div>
+            <div class="stat-sub">کافی برای کانتینر Mihomo</div>
+          </div>
+          <div class="glass-panel stat-card">
+            <div class="stat-header"><span>مدت زمان روشن بودن (Uptime)</span><span>⏱️</span></div>
+            <div class="stat-value" id="val-uptime" style="font-size:1.4rem;">14d 06:42</div>
+            <div class="stat-sub">اتصال پایدار بدون ریست</div>
+          </div>
+        </div>
+
+        <!-- WAN Dual Monitor Cards -->
+        <h3 style="margin-bottom:16px; font-weight:700;">📡 وضعیت پیوند‌های اینترنت (Multi-WAN)</h3>
+        <div class="wan-grid">
+          <!-- WAN 1: MobinNet -->
+          <div id="wan1-card" class="glass-panel wan-card active-wan">
+            <span id="wan1-badge" class="wan-card-badge badge-active">فعال (Default Route)</span>
+            <h3 style="font-size:1.25rem; margin-bottom:8px;">WAN-1: مبین‌نت (MobinNet LTE)</h3>
+            <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:16px;">اینترفیس: ether2 | نوع: DHCP Client | متریک: ۱</p>
+            <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+              <div>
+                <div style="font-size:0.8rem; color:var(--text-muted);">پینگ و زمان پاسخ:</div>
+                <div id="wan1-latency" class="font-mono" style="font-size:1.8rem; font-weight:700; color:var(--success);">32 ms</div>
+              </div>
+              <div class="status-badge" style="background:rgba(16,185,129,0.1); color:var(--success);">
+                پکت‌لاس: ۰٪
+              </div>
+            </div>
+          </div>
+
+          <!-- WAN 2: TCT -->
+          <div id="wan2-card" class="glass-panel wan-card">
+            <span id="wan2-badge" class="wan-card-badge badge-standby">آماده‌باش (Standby)</span>
+            <h3 style="font-size:1.25rem; margin-bottom:8px;">WAN-2: مخابرات (TCT VDSL)</h3>
+            <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:16px;">اینترفیس: ether1 | نوع: DHCP Client | متریک: ۲</p>
+            <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+              <div>
+                <div style="font-size:0.8rem; color:var(--text-muted);">پینگ و زمان پاسخ:</div>
+                <div id="wan2-latency" class="font-mono" style="font-size:1.8rem; font-weight:700; color:var(--warning);">18 ms</div>
+              </div>
+              <div class="status-badge" style="background:rgba(245,158,11,0.1); color:var(--warning);">
+                پکت‌لاس: ۰٪
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fast Actions & Philosophy Banner -->
+        <div class="glass-panel" style="padding:20px; display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <h4 style="color:#fff; margin-bottom:4px;">🔒 اصل کلیدی RouterPilot: امنیت قبل از اعمال</h4>
+            <p style="color:var(--text-muted); font-size:0.88rem;">
+              تمام تغییرات از مسیر <code class="font-mono">Connect → Discover → Backup → Plan → Preview → Apply (Safe Mode) → Test → Rollback</code> عبور می‌کنند.
+            </p>
+          </div>
+          <button class="btn btn-outline" onclick="switchTab('plan')">مشاهده موتور Plan →</button>
+        </div>
+      </section>
+
+      <!-- TAB 2: DISCOVERY -->
+      <section id="tab-discovery" class="tab-pane">
+        <h2 style="margin-bottom:8px;">🔍 نتیجه شناسایی خودکار روتر (Discovery)</h2>
+        <p style="color:var(--text-muted); margin-bottom:24px;">تمام اینترفیس‌ها، روت‌ها، فایروال و وضعیت کانتینر بدون دخالت دست استخراج شده‌اند.</p>
+
+        <div id="container-status-box" class="glass-panel" style="padding:20px; margin-bottom:24px;"></div>
+
+        <h3 style="margin-bottom:14px;">اینترفیس‌های شبکه روتر:</h3>
+        <div class="data-table-container glass-panel">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>نام پورت</th>
+                <th>نوع</th>
+                <th>وضعیت</th>
+                <th>آدرس IP اختصاصی</th>
+                <th>مک‌آدرس (MAC)</th>
+                <th>توضیحات (Comment)</th>
+              </tr>
+            </thead>
+            <tbody id="interfaces-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TAB 3: PLAN BUILDER -->
+      <section id="tab-plan" class="tab-pane">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+          <div>
+            <h2 id="plan-title">موتور تراکنشی Plan</h2>
+            <span id="plan-status-badge" class="status-badge">وضعیت: آماده بررسی</span>
+          </div>
+          <div style="display:flex; gap:12px;">
+            <button id="btn-dry-run" class="btn btn-outline">🧪 آزمایش شبیه‌سازی (Dry-Run)</button>
+            <button id="btn-apply-plan" class="btn btn-primary">⚡ اجرای مرحله‌ای با تأیید</button>
+          </div>
+        </div>
+
+        <div class="data-table-container glass-panel" style="margin-bottom:24px;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ردیف</th>
+                <th>عملیات</th>
+                <th>منبع (Path)</th>
+                <th>دستور دقیق میکروتیک</th>
+                <th>توضیح هدف</th>
+                <th>سطح ریسک</th>
+                <th>اعمال</th>
+              </tr>
+            </thead>
+            <tbody id="plan-steps-table-body">
+              <tr>
+                <td colspan="7" style="text-align:center; padding:32px; color:var(--text-muted);">
+                  هیچ Plan فعالی وجود ندارد. لطفاً از تب «پروفایل‌های شبکه» یک پروفایل را انتخاب فرمایید.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="glass-panel" style="padding:18px; border-right:4px solid var(--primary);">
+          <h4 style="margin-bottom:6px;">🛡️ مکانیزم محافظت از قفل‌شدگی (Zero-Lockout Protection):</h4>
+          <p style="font-size:0.88rem; color:var(--text-muted); line-height:1.6;">
+            موتور ایمنی قبل از اجرا بررسی می‌کند که هیچ دستوری آی‌پی مدیریت یا بریج داخلی را قطع نکند. همچنین در صورت بروز خطای شبکه در حین اجرا، سیستم به طور خودکار دستورات معکوس (Rollback) را اعمال می‌کند.
+          </p>
+        </div>
+      </section>
+
+      <!-- TAB 4: PROFILES -->
+      <section id="tab-profiles" class="tab-pane">
+        <h2 style="margin-bottom:8px;">🛡️ پروفایل‌های آماده و آزمایش‌شده</h2>
+        <p style="color:var(--text-muted); margin-bottom:24px;">به جای کانفیگ دستی و پرریسک، از پروفایل‌های استاندارد برای تولید Plan استفاده کنید.</p>
+        
+        <div id="profiles-grid" class="stats-grid"></div>
+      </section>
+
+      <!-- TAB 5: MIHOMO CENTER -->
+      <section id="tab-mihomo" class="tab-pane">
+        <h2 style="margin-bottom:8px;">🚀 مرکز کانتینر Mihomo (Clash Meta)</h2>
+        <p style="color:var(--text-muted); margin-bottom:24px;">نصب هوشمند، گروه‌بندی خودکار بر اساس تأخیر و مدیریت ترافیک تحریم/فیلترینگ.</p>
+
+        <div class="stats-grid">
+          <div class="glass-panel stat-card">
+            <div class="stat-header"><span>سازگاری سخت‌افزار</span><span>✅</span></div>
+            <div class="stat-value" style="font-size:1.4rem; color:var(--success);">کاملاً سازگار</div>
+            <div class="stat-sub">معماری ARM64 + رم ۱ گیگابایت</div>
+          </div>
+          <div class="glass-panel stat-card">
+            <div class="stat-header"><span>فضای ذخیره‌سازی کانتینر</span><span>💽</span></div>
+            <div class="stat-value" style="font-size:1.4rem;">USB Disk (14 GB)</div>
+            <div class="stat-sub">حفاظت از حافظه داخلی NAND</div>
+          </div>
+          <div class="glass-panel stat-card">
+            <div class="stat-header"><span>پورت REST API</span><span>🔌</span></div>
+            <div class="stat-value font-mono" style="font-size:1.4rem;">:9090</div>
+            <div class="stat-sub">کنترل از طریق MetaCubeX</div>
+          </div>
+        </div>
+
+        <div class="glass-panel" style="padding:24px; margin-top:20px;">
+          <h3 style="margin-bottom:12px;">ورود آدرس اشتراک (Subscription URL):</h3>
+          <div style="display:flex; gap:12px; margin-bottom:16px;">
+            <input type="text" placeholder="https://provider.example/sub?token=..." style="flex:1; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:10px; padding:12px; color:#fff;" dir="ltr">
+            <button class="btn btn-primary">دریافت و تست نودها</button>
+          </div>
+          <p style="font-size:0.85rem; color:var(--text-muted);">
+            💡 دریافت سابسکریپشن و آپدیت‌ها در صورت نیاز به طور خودکار از لایه SOCKS5 عبور می‌کند.
+          </p>
+        </div>
+      </section>
+
+      <!-- TAB 6: AI ADVISOR -->
+      <section id="tab-ai" class="tab-pane">
+        <h2 style="margin-bottom:8px;">🤖 مشاور هوشمند (Local & Cloud AI Advisor)</h2>
+        <p style="color:var(--text-muted); margin-bottom:24px;">ترکیب Rule Engine قطعی و رایگان با مدل‌های هوش مصنوعی (از طریق پروکسی امن).</p>
+
+        <div class="stats-grid" style="margin-bottom:24px;">
+          <div class="glass-panel stat-card">
+            <div class="stat-header"><span>امتیاز سلامت کانفیگ روتر</span><span>🎯</span></div>
+            <div id="ai-health-score" class="stat-value" style="color:var(--primary);">-- / 100</div>
+            <div id="ai-summary-text" class="stat-sub">در حال ارزیابی...</div>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:24px;">
+          <!-- Diagnostics Findings -->
+          <div>
+            <h3 style="margin-bottom:12px;">نتایج بررسی قطعی سیستم (Rule Engine):</h3>
+            <div id="ai-findings-list"></div>
+          </div>
+
+          <!-- Chat Dialog -->
+          <div class="glass-panel chat-box">
+            <div style="padding:16px; border-bottom:1px solid var(--glass-border); display:flex; justify-content:space-between; align-items:center;">
+              <strong>گفتگو با مشاور هوشمند RouterPilot</strong>
+              <span class="status-badge" style="font-size:0.75rem;">SOCKS-Ready</span>
+            </div>
+            <div id="chat-messages" class="chat-messages">
+              <div class="chat-bubble bot">
+                سلام! من مشاور هوشمند روتر شما هستم. وضعیت فعلی اینترفیس‌ها، روت‌ها و فایروال را بررسی کرده‌ام. هر سؤالی در مورد بهینه‌سازی یا رفع مشکل اتصال دارید مطرح کنید.
+              </div>
+            </div>
+            <div class="chat-input-row">
+              <input id="input-ai-prompt" type="text" placeholder="مثال: چطور ترافیک بانک‌ها را از مبین‌نت و بقیه را از تونل عبور دهم؟">
+              <button id="btn-ai-send" class="btn btn-primary">ارسال</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 7: AUDIT LOGS -->
+      <section id="tab-audit" class="tab-pane">
+        <h2 style="margin-bottom:8px;">📜 تاریخچه و لاگ تغییرات (Audit Trail)</h2>
+        <p style="color:var(--text-muted); margin-bottom:24px;">ثبت شفاف تمام رویدادها، تغییرات، بک‌آپ‌ها و تراکنش‌های انجام‌شده.</p>
+        
+        <div class="data-table-container glass-panel">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>زمان</th>
+                <th>دسته‌بندی</th>
+                <th>سطح</th>
+                <th>شرح عملیات</th>
+              </tr>
+            </thead>
+            <tbody id="audit-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- TAB 8: SETTINGS -->
+      <section id="tab-settings" class="tab-pane">
+        <h2 style="margin-bottom:8px;">⚙️ تنظیمات و امنیت سیستم</h2>
+        <p style="color:var(--text-muted); margin-bottom:24px;">مدیریت اعتبارسنجی، اتصال روتر و پروکسی SOCKS5.</p>
+
+        <div class="glass-panel" style="padding:24px; max-width:680px;">
+          <h3 style="margin-bottom:16px;">مشخصات اتصال به روتر:</h3>
+          <div style="display:flex; flex-direction:column; gap:14px; margin-bottom:24px;">
+            <div>
+              <label style="font-size:0.85rem; color:var(--text-muted);">آدرس IP یا دامنه روتر:</label>
+              <input id="cfg-host" type="text" value="172.16.20.1" style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+            </div>
+            <div>
+              <label style="font-size:0.85rem; color:var(--text-muted);">نام کاربری (Username):</label>
+              <input id="cfg-user" type="text" value="admin" style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+            </div>
+            <div>
+              <label style="font-size:0.85rem; color:var(--text-muted);">رمز عبور (ذخیره‌شده در Windows Credential Manager):</label>
+              <input id="cfg-pass" type="password" placeholder="••••••••" style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+            </div>
+          </div>
+
+          <h3 style="margin-bottom:16px;">لایه امنیتی SOCKS5 (برای AI و آپدیت‌ها):</h3>
+          <div style="display:flex; flex-direction:column; gap:14px; margin-bottom:24px;">
+            <div>
+              <label style="font-size:0.85rem; color:var(--text-muted);">آدرس پروکسی لوکال SOCKS5:</label>
+              <input id="cfg-socks" type="text" value="127.0.0.1:7890" style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+            </div>
+          </div>
+
+          <button class="btn btn-primary" onclick="alert('تنظیمات با موفقیت ذخیره شد.')">ذخیره و اعتبارسنجی</button>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

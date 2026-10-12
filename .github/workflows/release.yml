@@ -1,0 +1,58 @@
+name: Build & Release Windows Portable
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Windows Executable
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Build Windows Portable Binary
+        shell: pwsh
+        run: |
+          $env:CGO_ENABLED = "0"
+          $env:GOOS = "windows"
+          $env:GOARCH = "amd64"
+          go build -ldflags="-s -w" -o dist/RouterPilot.exe ./cmd/routerpilot
+
+      - name: Upload Binary Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RouterPilot-Windows-x64
+          path: dist/RouterPilot.exe
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/RouterPilot.exe
+          name: RouterPilot Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          body: |
+            ## 🚀 RouterPilot Release ${{ github.ref_name }}
+            
+            خروجی پرتابل و بدون وابستگی RouterPilot برای ویندوز ۶۴ بیتی.
+            
+            ### تغییرات و ویژگی‌ها:
+            - پنل ویندوزی مدرن با طراحی Glassmorphism و پشتیبانی RTL
+            - موتور کشف خودکار (Discovery) روترهای MikroTik RouterOS 7
+            - موتور پلن تراکنشی با قابلیت Dry-Run، بک‌آپ خودکار و Rollback
+            - مدیریت خطوط Multi-WAN (مبین‌نت / مخابرات) و Failover خودکار
+            - راه‌اندازی و مدیریت کانتینر Mihomo (Clash Meta)
+            - پشتیبانی از اتصال امن از طریق SOCKS5
