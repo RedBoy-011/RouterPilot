@@ -19,8 +19,8 @@ jobs:
         with:
           go-version: '1.22'
 
-      - name: Download Go Dependencies
-        run: go mod download
+      - name: Download & Tidy Go Dependencies
+        run: go mod tidy
 
       - name: Run Go Unit Tests
         run: go test -v ./tests/...

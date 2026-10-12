@@ -1,10 +1,8 @@
 package main
 
 import (
-	"embed"
 	"flag"
 	"fmt"
-	"io/fs"
 	"log"
 	"net/http"
 	"os/exec"
@@ -12,10 +10,8 @@ import (
 	"time"
 
 	"github.com/routerpilot/routerpilot/internal/api"
+	"github.com/routerpilot/routerpilot/web"
 )
-
-//go:embed all:../../web
-var webFS embed.FS
 
 func main() {
 	port := flag.Int("port", 8080, "Web Control Plane port")
@@ -28,20 +24,14 @@ func main() {
 	// Register API Handlers
 	server.RegisterRoutes(mux)
 
-	// Embedded Static Web Assets
-	subFS, err := fs.Sub(webFS, "web")
-	if err != nil {
-		// Fallback to local disk directory if not embedded
-		mux.Handle("/", http.FileServer(http.Dir("./web")))
-	} else {
-		mux.Handle("/", http.FileServer(http.FS(subFS)))
-	}
+	// Embedded Static Web Assets directly from web package
+	mux.Handle("/", http.FileServer(http.FS(web.Assets)))
 
 	addr := fmt.Sprintf("127.0.0.1:%d", *port)
 	url := fmt.Sprintf("http://%s", addr)
 
 	fmt.Println("================================================================")
-	fmt.Println("🚀 RouterPilot Control Plane v1.0 [Windows Portable]")
+	fmt.Println("🚀 RouterPilot Control Plane v1.1 [Windows Portable]")
 	fmt.Println("   معماری ایمن، هوشمند و تراکنشی مدیریت روترهای میکروتیک")
 	fmt.Printf("   داشبورد وب در دسترس است: %s\n", url)
 	fmt.Println("================================================================")

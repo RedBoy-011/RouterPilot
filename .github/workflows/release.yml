@@ -21,6 +21,12 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+          check-latest: true
+
+      - name: Download & Tidy Dependencies
+        shell: pwsh
+        run: |
+          go mod tidy
 
       - name: Build Windows Portable Binary
         shell: pwsh
@@ -28,7 +34,8 @@ jobs:
           $env:CGO_ENABLED = "0"
           $env:GOOS = "windows"
           $env:GOARCH = "amd64"
-          go build -ldflags="-s -w" -o dist/RouterPilot.exe ./cmd/routerpilot
+          New-Item -ItemType Directory -Force -Path "dist"
+          go build -v -ldflags="-s -w" -o dist/RouterPilot.exe ./cmd/routerpilot
 
       - name: Upload Binary Artifact
         uses: actions/upload-artifact@v4
@@ -47,12 +54,10 @@ jobs:
           body: |
             ## 🚀 RouterPilot Release ${{ github.ref_name }}
             
-            خروجی پرتابل و بدون وابستگی RouterPilot برای ویندوز ۶۴ بیتی.
+            فایل اجرایی مستقل و پرتابل ویندوز برای RouterPilot.
             
-            ### تغییرات و ویژگی‌ها:
-            - پنل ویندوزی مدرن با طراحی Glassmorphism و پشتیبانی RTL
-            - موتور کشف خودکار (Discovery) روترهای MikroTik RouterOS 7
-            - موتور پلن تراکنشی با قابلیت Dry-Run، بک‌آپ خودکار و Rollback
-            - مدیریت خطوط Multi-WAN (مبین‌نت / مخابرات) و Failover خودکار
-            - راه‌اندازی و مدیریت کانتینر Mihomo (Clash Meta)
-            - پشتیبانی از اتصال امن از طریق SOCKS5
+            ### ویژگی‌های نسخه ۱.۱:
+            - **طراحی مدرن Glassmorphism:** داشبورد ۶ کارته KPI، نمودار ترافیک ۲۴ ساعته و جدول داینامیک اینترنت‌ها
+            - **پشتیبانی کامل از هر اپراتور:** حذف وابستگی به نام‌های خاص و امکان برچسب‌گذاری دلخواه برای خطوط اینترنت
+            - **هوش مصنوعی Prompt-to-Plan:** تبدیل هر درخواست شبکه (وایرگارد، فوروارد پورت، کنترل سرعت) به پلن تراکنشی میکروتیک
+            - **فاز صفر روتر مرجع:** بسته کامل استانداردهای روتر مرجع و آزمون‌گر خودکار
