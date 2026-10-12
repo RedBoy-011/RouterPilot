@@ -68,6 +68,47 @@ func (m *Manager) CompileToPlan(profileID string, discovery *adapter.DiscoveryRe
 }
 
 func (m *Manager) registerDefaults() {
+	// 0. Generic-Dual-WAN-Failover (Customizable ISPs)
+	m.profiles["Generic-Dual-WAN-Failover"] = Profile{
+		ID:          "Generic-Dual-WAN-Failover",
+		Name:        "Generic Multi-WAN Smart Failover",
+		TitleFa:     "فیل‌اور هوشمند دو خط اینترنت دلخواه (عمومی)",
+		Description: "مسیریابی خودکار با خط اولویت ۱ (اصلی) و خط اولویت ۲ (پشتیبان)، مانیتورینگ سلامت با پینگ خودکار، قابل اعمال برای هر دو ارائه‌دهنده (شاتل، زیتل، ایرانسل، همراه اول، استارلینک و ...).",
+		Category:    "WAN & Failover",
+		Version:     "1.1",
+		Steps: []adapter.PlanStep{
+			{
+				ID:             1,
+				Action:         adapter.ActionAdd,
+				TargetResource: "/ip/route",
+				Payload: map[string]any{
+					"dst-address":   "0.0.0.0/0",
+					"gateway":       "192.168.1.1",
+					"distance":      1,
+					"check-gateway": "ping",
+					"comment":       "Primary-WAN-Route",
+				},
+				NativeCommand: "/ip/route add dst-address=0.0.0.0/0 gateway=192.168.1.1 distance=1 check-gateway=ping comment=Primary-WAN-Route",
+				Description:   "تعریف گیت‌وی پیش‌فرض اینترنت اول با پایش خودکار پینگ (Distance 1)",
+				RiskLevel:     adapter.RiskMedium,
+			},
+			{
+				ID:             2,
+				Action:         adapter.ActionAdd,
+				TargetResource: "/ip/route",
+				Payload: map[string]any{
+					"dst-address": "0.0.0.0/0",
+					"gateway":     "192.168.2.1",
+					"distance":    2,
+					"comment":     "Secondary-WAN-Route",
+				},
+				NativeCommand: "/ip/route add dst-address=0.0.0.0/0 gateway=192.168.2.1 distance=2 comment=Secondary-WAN-Route",
+				Description:   "تعریف گیت‌وی اینترنت دوم به عنوان مسیر جایگزین (Distance 2)",
+				RiskLevel:     adapter.RiskLow,
+			},
+		},
+	}
+
 	// 1. MobinNet-TCT-Failover
 	m.profiles["MobinNet-TCT-Failover"] = Profile{
 		ID:          "MobinNet-TCT-Failover",

@@ -68,7 +68,9 @@ DISCOVERY_DATA = {
     "WANs": [
         {
             "ID": "wan1",
-            "Name": "MobinNet (LTE/DHCP)",
+            "Name": "WAN-1",
+            "CustomName": "اینترنت اول (اصلی)",
+            "Provider": "Primary ISP (LTE/DHCP)",
             "Interface": "ether2",
             "Type": "DHCP",
             "IP": "192.168.1.150/24",
@@ -82,7 +84,9 @@ DISCOVERY_DATA = {
         },
         {
             "ID": "wan2",
-            "Name": "TCT (VDSL/DHCP)",
+            "Name": "WAN-2",
+            "CustomName": "اینترنت دوم (پشتیبان)",
+            "Provider": "Secondary ISP (VDSL/DHCP)",
             "Interface": "ether1",
             "Type": "DHCP",
             "IP": "192.168.2.80/24",
@@ -105,10 +109,38 @@ DISCOVERY_DATA = {
         "HasUSBDisk": True,
         "DiskFreeMB": 14336
     },
-    "RecommendedProfile": "MobinNet-TCT-Failover"
+    "RecommendedProfile": "Generic-Dual-WAN-Failover"
 }
 
 PROFILES_DATA = [
+    {
+        "ID": "Generic-Dual-WAN-Failover",
+        "Name": "Generic Multi-WAN Smart Failover",
+        "TitleFa": "فیل‌اور هوشمند دو خط اینترنت دلخواه (عمومی)",
+        "Description": "مسیریابی خودکار با خط اولویت ۱ (اصلی) و خط اولویت ۲ (پشتیبان)، پایش پکت‌ها و سوئیچ زیر ۱ ثانیه برای هر دو اپراتور دلخواه (شاتل، زیتل، ایرانسل، همراه اول، استارلینک و ...).",
+        "Category": "WAN & Failover",
+        "Version": "1.1",
+        "Steps": [
+            {
+                "ID": 1,
+                "Action": "add",
+                "TargetResource": "/ip/route",
+                "NativeCommand": "/ip/route add dst-address=0.0.0.0/0 gateway=192.168.1.1 distance=1 check-gateway=ping comment=Primary-WAN-Route",
+                "Description": "تعریف گیت‌وی پیش‌فرض اینترنت اول با پایش خودکار پینگ (Distance 1)",
+                "RiskLevel": "medium",
+                "Applied": False
+            },
+            {
+                "ID": 2,
+                "Action": "add",
+                "TargetResource": "/ip/route",
+                "NativeCommand": "/ip/route add dst-address=0.0.0.0/0 gateway=192.168.2.1 distance=2 comment=Secondary-WAN-Route",
+                "Description": "تعریف گیت‌وی اینترنت دوم به عنوان مسیر جایگزین (Distance 2)",
+                "RiskLevel": "low",
+                "Applied": False
+            }
+        ]
+    },
     {
         "ID": "MobinNet-TCT-Failover",
         "Name": "MobinNet + TCT Smart Failover",

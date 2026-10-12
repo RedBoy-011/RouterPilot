@@ -1,171 +1,117 @@
-# 🚀 RouterPilot (نسخه ۱.۰)
+# 🚀 RouterPilot (نسخه ۱.۱)
 
-> **سیستم مدیریت هوشمند، تراکنشی و امن برای روترهای میکروتیک (MikroTik RouterOS 7)**  
-> *با طراحی مدرن Glassmorphism، پشتیبانی کامل از زبان فارسی و راست‌چین (RTL)، موتور پلن بدون قطعی و قابلیت کارکرد مستقل*
-
----
-
-## 🌟 چشم‌انداز و فلسفه طراحی
-
-**RouterPilot** با یک اصل حیاتی و غیرقابل‌مذاکره طراحی شده است: **«امنیت اول، هوشمندی دوم، راحتی سوم»**. هیچ تغییری هرگز به صورت کورکورانه روی روتر اعمال نمی‌شود.
-
-### زنجیره تراکنشی ایمنی:
-$$\text{Connect} \longrightarrow \text{Discover} \longrightarrow \text{Backup} \longrightarrow \text{Plan} \longrightarrow \text{Preview} \longrightarrow \text{Confirm} \longrightarrow \text{Apply} \longrightarrow \text{Test} \longrightarrow \text{Rollback (در صورت خطا)}$$
-
-- **Zero-Lockout Guarantee**: موتور ایمنی هرگز اجازه حذف، فیلتر یا تغییر آدرس اینترفیس مدیریت یا بریج LAN را نمی‌دهد.
-- **تأیید صریح کاربر برای عملیات حساس**: تغییر Default Route، حذف Firewall و بازنشانی تنظیمات همیشه نیازمند تأیید دستی است.
-- **لایه‌بندی مدرن SOCKS5**: تمام تماس‌های خارجی (استعلام هوش مصنوعی، دریافت اشتراک، به‌روزرسانی نودها) به صورت پیش‌فرض قابلیت عبور از پروکسی SOCKS5 را دارند.
+> **سیستم مدیریت متمرکز، تراکنشی و فوق‌هوشمند روترهای میکروتیک (MikroTik RouterOS 7)**  
+> *با طراحی مدرن Dark Glassmorphism، پشتیبانی کامل از نام‌گذاری داینامیک اینترنت‌ها (بدون وابستگی به اپراتور خاص)، موتور تبدیل متن به کانفیگ (Prompt-to-Plan AI)، و فاز صفر استانداردسازی روتر مرجع*
 
 ---
 
-## 🏗️ معماری کلان نرم‌افزار
+## 🌟 اصول بنیادین معماری (نسخه ۱.۱)
 
-```mermaid
-flowchart TD
-    subgraph UI ["Modern Glass UI (RTL / Portable)"]
-        Dashboard["داشبورد زنده (Live Dashboard)"]
-        DiscoveryView["نمایشگر شناسایی سخت‌افزار (Discovery)"]
-        PlanBuilder["موتور ساخت پلن و پیش‌نمایش Diff"]
-        ProfilesView["کتابخانه پروفایل‌های آماده"]
-        MihomoCenter["مرکز کانتینر Mihomo"]
-        AIAdvisor["مشاور هوشمند (Rule Engine + AI)"]
-    end
+### ۱. رفع محدودیت اپراتور و نام‌گذاری داینامیک اینترنت‌ها:
+در نسخه ۱.۱، هیچ نام اپراتوری (مانند مبین‌نت یا مخابرات) به صورت هاردکد وجود ندارد. شما می‌توانید:
+- هر تعداد اینترنت متصل (WAN-1، WAN-2 و ...) را با نام دلخواه خود (شاتل، زیتل، ایرانسل، همراه اول، استارلینک، فیبر و ...) برچسب‌گذاری و مدیریت کنید.
+- اولویت متریک، وضعیت پایش و گیت‌وی‌ها را به صورت مستقل تعریف نمایید.
 
-    subgraph Core ["RouterPilot Core Control Plane"]
-        SafetyGuard["Safety Rule Engine & Zero-Lockout"]
-        TransactionPlan["Plan Engine (Dry-Run, Apply, Rollback Stack)"]
-        AutoBackup["Backup & Restore Manager"]
-        WANHealth["WAN Health & Multi-Target Probe Monitor"]
-        MihomoProv["Mihomo Smart Provisioner"]
-        ProxyMgr["SOCKS5-aware Transport Layer"]
-        AuditLog["SQLite Audit Trail & Event Stream"]
-        Creds["Windows Credential Store"]
-    end
+### ۲. معماری هوش مصنوعی: دستیار و برنامه‌ریز (Advisor + Planner)
+هوش مصنوعی در RouterPilot هرگز یک «مجری کورکورانه» نیست، بلکه به عنوان یک **مشاور و مهندس شبکه ارشد** عمل می‌کند:
+$$\text{User Request (متن ساده)} \longrightarrow \text{AI Diagnostics} \longrightarrow \text{Plan Generation} \longrightarrow \text{Preview Diff} \longrightarrow \text{Confirm} \longrightarrow \text{Safe Apply} \longrightarrow \text{Rollback On Error}$$
 
-    subgraph Adapters ["Device Adapters Layer"]
-        ROS7["MikroTik RouterOS 7 (REST API + SSH)"]
-        ROS6["MikroTik RouterOS 6 (آینده)"]
-        OpenWrt["OpenWrt Adapter (آینده)"]
-        MockRouter["Built-in Virtual Router Simulator (آفلاین)"]
-    end
+هر قابلیت میکروتیک (تونل WireGuard، کنترل سرعت و پهنای باند Simple Queue، فوروارد پورت دوربین‌ها، روتینگ پیشرفته، فایروال و ...) را می‌توان با متن ساده از AI خواست تا بلافاصله یک Plan معتبر و گام‌به‌گام با دستورات بومی RouterOS تولید کند.
 
-    UI --> Core
-    Core --> Adapters
+---
+
+## 🎨 تصویرسازی رابط کاربری مدرن (Glassmorphism v1.1)
+
+```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│  RouterPilot v1.1        [ 🔍 جستجو در روترها، پروفایل‌ها یا لاگ‌ها... ]  [RB5009] [Backup] │
+├───────────────┬────────────────────────────────────────────────────────────────────────┤
+│ 📊 داشبورد    │ [Active WAN: WAN-1] [ترافیک: 42Mbps] [Latency: 24ms] [Mihomo] [Health] │
+│ 🖧 روترها     ├───────────────────────────────────┬────────────────────────────────────┤
+│ 🔍 Discovery  │  📈 نمودار ترافیک ۲۴ ساعته        │  📡 جدول وضعیت داینامیک WANها      │
+│ 📑 Planها     │  (خطی نرم با گرادیان فیروزه‌ای)   │  (امکان تغییر نام اپراتور، Latency)│
+│ 🚀 Mihomo     ├───────────────────┬───────────────┴────┬───────────────────────────────┤
+│ 🤖 AI Advisor │ 🛣️ Active Route   │ 📑 آخرین Plan      │ 💡 پیشنهاد هوش مصنوعی         │
+│ 📜 لاگ‌ها     │ (0.0.0.0/0 -> GW) │ (Failover v1.1)    │ (تفکیک خودکار ترافیک داخلی)   │
+│ ⚙️ تنظیمات    ├───────────────────┴────────────────────┴───────────────────────────────┤
+│ [اتصال سالم]  │                                                                        │
+└───────────────┴────────────────────────────────────────────────────────────────────────┘
 ```
 
----
-
-## ⚡ قابلیت‌های کلیدی
-
-1. **شناسایی خودکار (Smart Discovery):**
-   - معماری پردازنده (ARM, ARM64, x86, Tile, MIPS)
-   - نسخه RouterOS و لود لحظه‌ای CPU و حافظه رم آزاد
-   - فضای ذخیره‌سازی داخلی و تشخیص حافظه USB
-   - اینترفیس‌ها، بریج‌ها، مک‌آدرس‌ها و وضعیت Running
-   - خطوط WAN (از نوع DHCP Client، PPPoE، Static یا LTE)
-   - رول‌های Mangle، NAT و مسیرهای جدول روتینگ
-
-2. **سیستم پروفایل‌های آماده (Profile System):**
-   - `MobinNet-TCT-Failover`: سوئیچ هوشمند و مانیتورینگ خطوط مبین‌نت و مخابرات
-   - `Mihomo-Container`: راه‌اندازی کانتینر Clash Meta با دیسک USB و شبکه VETH
-   - `Iran-Direct-Foreign-Proxy`: تفکیک خودکار ترافیک داخلی بانک‌ها و سرورهای خارجی
-   - `Safe-Home-Router`: امن‌سازی پایه‌ای پورت‌ها و فایروال ورودی
-
-3. **مرکز هوشمند Mihomo (Clash Meta):**
-   - بررسی خودکار سازگاری پردازنده و رم
-   - هدایت فضای نصب کانتینر روی USB برای جلوگیری از استهلاک حافظه داخلی روتر
-   - اتصال مستقیم به پنل مدیریت وب MetaCubeX (`:9090/ui`)
-
-4. **مشاور هوشمند دو لایه‌ای (AI Advisor):**
-   - **لایه اول (قطعی و رایگان):** موتور داخلی Rule Engine برای کشف تداخل‌های روتینگ و نشت ترافیک
-   - **لایه دوم (مدل‌های هوش مصنوعی):** امکان اتصال اختیاری به مدل‌های محلی یا کلود از طریق SOCKS5 بدون افشای مستقیم دسترسی روتر
+- **Top Bar:** نوار جستجوی مرکزی، نشانگر وضعیت آنلاین روتر، سوییچر تم (Dark Glass / Light Glass) و دکمه بک‌آپ سریع.
+- **ردیف اول (KPI Cards):** ۶ کارت شیشه‌ای بلور برای Active WAN، ترافیک لحظه‌ای، تأخیر میانگین، وضعیت کانتینر Mihomo، وضعیت VPN و امتیاز سلامت سیستم.
+- **ردیف دوم (Two Big Panels):** نمودار گرافیکی ترافیک مصرفی + جدول داینامیک وضعیت اینترنت‌ها با دکمه تغییر نام و سوئیچ دستی.
+- **ردیف سوم:** کارت‌های مسیر فعال، آخرین تاریخچه تراکنش Plan و جعبه پیشنهادات اختصاصی هوش مصنوعی.
 
 ---
 
-## 📁 ساختار ماژولار پروژه
+## 🛡️ فاز صفر – استانداردسازی روتر مرجع (Reference Device)
+
+در فاز صفر، همین روتر فعلی به عنوان **Reference Device** پروژه استانداردسازی و تثبیت می‌شود:
+
+پوشه اختصاصی **`reference-device/`** شامل:
+1. **`reference-device/baseline/`**: اسکریپت‌های پایه کانفیگ (`01_interfaces`, `02_ip`, `03_routes`, `04_firewall`, `05_l2tp`, `06_container`).
+2. **`reference-device/tests/test_suite.py`**: آزمون‌گر خودکار ۷ مرحله‌ای برای تست پورت‌های مدیریت، قوانین عدم قفل‌شدگی (Zero-Lockout)، پایش پینگ، سلامت فیل‌اور و کانتینر.
+3. **`reference-device/REFERENCE_DEVICE.md`**: مستند جامع معماری، توپولوژی پورت‌ها، قوانین نام‌گذاری و مشخصات سخت‌افزاری روتر مرجع.
+
+---
+
+## 📁 ساختار به‌روزرسانی‌شده پروژه (v1.1)
 
 ```
 RouterPilot/
 ├── cmd/
-│   └── routerpilot/
-│       └── main.go                 # نقطه ورود برنامه پرتابل Go
+│   └── routerpilot/main.go         # سرور پرتابل Go و وب‌سرور جاسازی‌شده
 ├── internal/
 │   ├── adapter/
-│   │   ├── adapter.go              # Interface و مدل‌های ارتباطی
-│   │   ├── mikrotik_v7.go          # آداپتور رسمی RouterOS 7 (REST API)
-│   │   └── mock_router.go          # روتر مجازی برای تست بدون سخت‌افزار
+│   │   ├── adapter.go              # مدل‌های داینامیک WAN و اینترفیس
+│   │   ├── mikrotik_v7.go          # آداپتور REST API RouterOS 7 + SOCKS5
+│   │   └── mock_router.go          # روتر مجازی با شبیه‌سازی دو خط اینترنت
 │   ├── core/
-│   │   ├── safety.go               # موتور قوانین امنیتی و Zero-Lockout
-│   │   ├── plan.go                 # موتور تراکنشی Plan و Rollback
+│   │   ├── safety.go               # موتور ایمنی و گارانتی Zero-Lockout
+│   │   ├── plan.go                 # موتور تراکنش، شبیه‌سازی Dry-Run و Rollback
 │   │   └── audit.go                # ثبت لاگ و تاریخچه ممیزی
 │   ├── engines/
-│   │   ├── health.go               # پایش سلامت خطوط WAN و تاخیر
-│   │   ├── mihomo.go               # پرویژنر هوشمند کانتینر Mihomo
-│   │   ├── proxy.go                # لایه انتقال امن SOCKS5
-│   │   └── ai_advisor.go           # مشاور هوشمند و Rule Engine
-│   ├── profile/
-│   │   └── profile.go              # لودر و کامپایلر پروفایل‌های شبکه
-│   ├── security/
-│   │   └── credentials.go          # ذخیره امن رمزها با AES-GCM
-│   └── api/
-│       └── server.go               # وب‌سرور داخلی و REST API
+│   │   ├── health.go               # پایش هوشمند سلامت اینترنت‌ها با نام دلخواه
+│   │   ├── mihomo.go               # پرویژنر کانتینر Mihomo و دیسک USB
+│   │   ├── proxy.go                # ترانسپورت اختصاصی SOCKS5
+│   │   └── ai_advisor.go           # موتور تبدیل متن به کانفیگ (Prompt-to-Plan)
+│   ├── profile/profile.go          # کتابخانه پروفایل‌های عمومی Multi-WAN
+│   └── api/server.go               # وب‌سرویس REST API
 ├── web/
-│   ├── index.html                  # رابط کاربری مدرن شیشه‌ای (Glassmorphism)
-│   ├── css/style.css               # استایل‌های RTL، انیمیشن‌ها و دارک‌گلس
-│   └── js/app.js                   # مدیریت وضعیت و ارتباط با موتورها
+│   ├── index.html                  # رابط شیشه‌ای v1.1 با نوار جستجو و ۶ کارت KPI
+│   ├── css/style.css               # استایل‌های Dark Glassmorphism، نمودار و RTL
+│   └── js/app.js                   # مدیریت وضعیت، چت AI و تغییر نام خطوط
+├── reference-device/               # فریم‌ورک استانداردسازی روتر مرجع (فاز صفر)
+│   ├── baseline/                   # بک‌آپ متنی استاندارد روت‌ها و اینترفیس‌ها
+│   ├── tests/test_suite.py         # اسکریپت تست خودکار سلامت روتر
+│   └── REFERENCE_DEVICE.md         # مستند کامل روتر مرجع
 ├── scripts/
-│   ├── run_simulator.py            # اجراکننده مستقل و فوری ویندوز با پایتون
-│   └── start_routerpilot.bat       # لانچر تک‌کلیکی ویندوز
+│   ├── run_simulator.py            # رانر مستقل پایتون برای اجرای فوری
+│   └── start_routerpilot.bat       # لانچر ۱-کلیکی ویندوز
 ├── tests/
-│   ├── safety_test.go              # تست‌های ایمنی و عدم قفل‌شدگی
-│   └── plan_test.go                # تست شبیه‌سازی و رول‌بک
-├── .github/
-│   └── workflows/
-│       ├── test.yml                # تست‌های مداوم در گیت‌هاب
-│       └── release.yml             # کامپایل خودکار فایل exe در Releases
-├── go.mod
-├── LICENSE
+│   ├── safety_test.go              # آزمون قوانین ایمنی
+│   ├── plan_test.go                # آزمون تراکنش و رول‌بک
+│   └── ai_test.go                  # آزمون موتور Prompt-to-Plan
 └── README.md
 ```
 
 ---
 
-## 🚀 نحوه اجرا در ویندوز
+## 🚀 نحوه تست و اجرای نسخه ۱.۱ در ویندوز
 
-### روش ۱: اجرای فوری و مستقیم (بدون نیاز به نصب هیچ ابزار جدید)
-از آنجا که پایتون روی ویندوز شما نصب است، کافیست فایل زیر را اجرا کنید:
-1. روی فایل **`start_routerpilot.bat`** دابل کلیک کنید.
-2. برنامه به طور خودکار مرورگر شما را روی آدرس **`http://127.0.0.1:8080`** باز می‌کند.
-3. می‌توانید در حالت شبیه‌ساز (Simulator Mode) یا اتصال واقعی با رابط شیشه‌ای کار کنید.
-
-### روش ۲: کامپایل با Go
-```bash
-go build -ldflags="-s -w" -o RouterPilot.exe ./cmd/routerpilot
-./RouterPilot.exe
+فقط کافیست فایل زیر را اجرا کنید:
+```powershell
+.\start_routerpilot.bat
 ```
+مرورگر شما در آدرس `http://127.0.0.1:8080` باز شده و تمامی بخش‌های جدید (داشبورد ۶ کارته، تغییر نام خطوط، چت و سازنده پلن هوش مصنوعی) به صورت زنده قابل استفاده هستند.
 
 ---
 
-## 📦 نحوه انتشار در گیت‌هاب (GitHub Deployment)
+## 🧪 اجرای تست‌های فاز صفر روتر مرجع
 
-این پروژه به طور کامل برای بارگذاری در گیت‌هاب کانفیگ شده است:
-
-```bash
-# ۱. اتصال به ریپازیتوری دلخواه شما در گیت‌هاب:
-git remote add origin https://github.com/<نام-کاربری-شما>/RouterPilot.git
-
-# ۲. ارسال کدها به شاخه اصلی:
-git push -u origin main
-
-# ۳. برای ایجاد خودکار فایل RouterPilot.exe در بخش Releases گیت‌هاب:
-git tag v1.0.0
-git push origin v1.0.0
+برای اجرای تست‌های اعتبارسنجی روتر مرجع:
+```powershell
+py reference-device\tests\test_suite.py
 ```
-> [!TIP]
-> به محض push کردن تگ `v1.0.0`، اکشن‌های گیت‌هاب (`.github/workflows/release.yml`) به طور خودکار فایل اجرایی پرتابل ویندوز (`RouterPilot.exe`) را کامپایل کرده و در صفحه Releases قرار می‌دهند.
-
----
-
-## 📄 مجوز (License)
-
-این پروژه تحت مجوز **MIT License** منتشر شده است.
+خروجی تست سلامت، پورت‌ها، قوانین Zero-Lockout و وضعیت کانتینر را به صورت درصد سلامت نشان می‌دهد.

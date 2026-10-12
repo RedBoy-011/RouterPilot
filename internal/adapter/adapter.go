@@ -73,12 +73,15 @@ const (
 // WANInfo holds WAN status, metrics, and health telemetry
 type WANInfo struct {
 	ID             string  `json:"id"`
-	Name           string  `json:"name"`           // e.g. "MobinNet", "TCT"
-	Interface      string  `json:"interface"`      // e.g. "ether2", "ether1"
-	Type           WANType `json:"type"`
+	Name           string  `json:"name"`            // System name e.g. "WAN-1"
+	CustomName     string  `json:"custom_name"`     // User-defined label e.g. "Starlink", "Irancell", "Shatel"
+	Provider       string  `json:"provider"`        // Detected or custom provider
+	Interface      string  `json:"interface"`       // e.g. "ether1", "ether2", "lte1"
+	Type           WANType `json:"type"`            // DHCP, PPPoE, Static, LTE
 	IP             string  `json:"ip"`
 	Gateway        string  `json:"gateway"`
 	Metric         int     `json:"metric"`
+	Priority       int     `json:"priority"`        // 1 = Primary, 2 = Secondary, 3 = Standby
 	RoutingTable   string  `json:"routing_table"`
 	IsDefaultRoute bool    `json:"is_default_route"`
 	Healthy        bool    `json:"healthy"`
@@ -189,6 +192,10 @@ type HealthReport struct {
 	Timestamp      time.Time `json:"timestamp"`
 	OverallHealthy bool      `json:"overall_healthy"`
 	ActiveWAN      string    `json:"active_wan"`
+	TrafficRxMbps  float64   `json:"traffic_rx_mbps"`
+	TrafficTxMbps  float64   `json:"traffic_tx_mbps"`
+	AvgLatencyMs   int       `json:"avg_latency_ms"`
+	SystemScore    int       `json:"system_score"` // 0-100
 	WANProbes      []WANInfo `json:"wan_probes"`
 	MihomoHealthy  bool      `json:"mihomo_healthy"`
 	L2TPHealthy    bool      `json:"l2tp_healthy"`

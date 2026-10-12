@@ -73,9 +73,18 @@ func (he *WANHealthEngine) EvaluateFailover(wans []adapter.WANInfo) (needsFailov
 		return false, "", "کمتر از دو خط WAN برای ارزیابی Failover شناسایی شد."
 	}
 
-	if !primary.Healthy || primary.PacketLoss > 50 {
-		return true, secondary.Name, fmt.Sprintf("خط اصلی (%s) با شکست اتصال یا پکت‌لاس بالا مواجه است. سوئیچ به %s توصیه می‌شود.", primary.Name, secondary.Name)
+	primaryName := primary.Name
+	if primary.CustomName != "" {
+		primaryName = primary.CustomName
+	}
+	secondaryName := secondary.Name
+	if secondary.CustomName != "" {
+		secondaryName = secondary.CustomName
 	}
 
-	return false, "", "وضعیت تمام لینک‌های WAN پایدار است."
+	if !primary.Healthy || primary.PacketLoss > 50 {
+		return true, secondaryName, fmt.Sprintf("خط اصلی (%s) با شکست اتصال یا پکت‌لاس بالا مواجه است. سوئیچ به %s توصیه می‌شود.", primaryName, secondaryName)
+	}
+
+	return false, "", "وضعیت تمام لینک‌های اینترنت پایدار و بهینه است."
 }

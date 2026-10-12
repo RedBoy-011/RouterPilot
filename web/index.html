@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>RouterPilot | مرکز هوشمند مدیریت روتر</title>
+  <title>RouterPilot v1.1 | مرکز هوشمند مدیریت روتر</title>
   <link rel="stylesheet" href="css/style.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🚀</text></svg>">
 </head>
@@ -22,7 +22,7 @@
       </div>
       <div class="brand-title">
         <h1>RouterPilot</h1>
-        <span>نسخه ۱.۰ | ویندوز پرتابل</span>
+        <span>نسخه ۱.۱ | معماری شیشه‌ای</span>
       </div>
     </div>
 
@@ -30,161 +30,273 @@
       <li>
         <a class="nav-item active" data-tab="dashboard">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-          داشبورد زنده
+          داشبورد
+        </a>
+      </li>
+      <li>
+        <a class="nav-item" data-tab="routers">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="8" rx="2"></rect><rect x="2" y="14" width="20" height="8" rx="2"></rect><circle cx="6" cy="6" r="1"></circle><circle cx="6" cy="18" r="1"></circle></svg>
+          روترها
         </a>
       </li>
       <li>
         <a class="nav-item" data-tab="discovery">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-          شناسایی خودکار (Discovery)
+          Discovery
         </a>
       </li>
       <li>
         <a class="nav-item" data-tab="plan">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-          موتور پلن و تغییرات (Plan)
-        </a>
-      </li>
-      <li>
-        <a class="nav-item" data-tab="profiles">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
-          پروفایل‌های شبکه
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+          Planها
         </a>
       </li>
       <li>
         <a class="nav-item" data-tab="mihomo">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
-          مرکز کانتینر Mihomo
+          Mihomo
         </a>
       </li>
       <li>
         <a class="nav-item" data-tab="ai">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2z"></path><path d="M12 8v4"></path><path d="M12 16h.01"></path></svg>
-          مشاور هوشمند (AI Advisor)
+          AI Advisor
         </a>
       </li>
       <li>
         <a class="nav-item" data-tab="audit">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
-          لاگ و ممیزی (Audit)
+          لاگ‌ها
         </a>
       </li>
       <li>
         <a class="nav-item" data-tab="settings">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-          تنظیمات و امنیت
+          تنظیمات
         </a>
       </li>
     </ul>
 
-    <div style="padding-top:16px; border-top:1px solid var(--glass-border); font-size:0.75rem; color:var(--text-muted); text-align:center;">
-      طراحی شده برای کنترل امن روترها
+    <div class="sidebar-footer">
+      <div class="status-badge" style="width:100%; justify-content:center; background:rgba(16,185,129,0.1); color:var(--success); border-color:rgba(16,185,129,0.3);">
+        <span class="status-dot"></span>
+        <span id="sidebar-system-status">اتصال سالم و پایدار</span>
+      </div>
     </div>
   </aside>
 
   <!-- Main Content Viewport -->
   <main class="main-content">
     
-    <!-- Top Bar -->
+    <!-- Top Bar with Global Search -->
     <header class="topbar">
-      <div class="topbar-info">
-        <div id="router-status-badge" class="status-badge">
-          <span class="status-dot"></span>
-          <span>در حال بررسی روتر...</span>
-        </div>
-        <div class="status-badge" style="color:var(--primary);">
-          <span>گیت‌وی فعال:</span>
-          <strong id="val-active-wan" class="font-mono">WAN-1 (MobinNet)</strong>
-        </div>
+      <div class="search-box">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input id="global-search" type="text" placeholder="جستجو در روترها، پروفایل‌ها، دستورات یا لاگ‌ها...">
       </div>
 
       <div class="topbar-actions">
-        <button id="btn-manual-failover" class="btn btn-outline">
-          🔄 سوئیچ دستی خط اینترنت
+        <div id="router-status-badge" class="status-badge">
+          <span class="status-dot"></span>
+          <span>RB5009 (ROS 7.15)</span>
+        </div>
+        <button id="btn-theme-toggle" class="btn btn-outline" title="تغییر حالت تم">
+          🌓
         </button>
         <button id="btn-quick-backup" class="btn btn-primary">
-          🛡️ بک‌آپ سریع روتر
+          🛡️ Backup سریع
         </button>
       </div>
     </header>
 
     <div class="content-body">
 
-      <!-- TAB 1: DASHBOARD -->
+      <!-- TAB 1: DASHBOARD (v1.1 Modern Layout) -->
       <section id="tab-dashboard" class="tab-pane active">
-        <!-- Stats Grid -->
-        <div class="stats-grid">
-          <div class="glass-panel stat-card">
-            <div class="stat-header"><span>مدل سخت‌افزار</span><span>⚡</span></div>
-            <div class="stat-value" id="val-router-model">RB5009UG+S+IN</div>
-            <div class="stat-sub" id="val-router-arch">arm64 (4 Cores)</div>
+        
+        <!-- Row 1: 6 KPI Glass Cards -->
+        <div class="kpi-grid">
+          <!-- KPI 1 -->
+          <div class="glass-panel kpi-card">
+            <div class="kpi-header"><span>Active WAN</span><span>📶</span></div>
+            <div class="kpi-value font-mono" id="kpi-active-wan" style="font-size:1.25rem; color:var(--primary);">WAN-1</div>
+            <div class="kpi-sub" id="kpi-active-wan-sub">اینترنت اصلی</div>
           </div>
-          <div class="glass-panel stat-card">
-            <div class="stat-header"><span>میزان بار پردازنده (CPU)</span><span>📊</span></div>
-            <div class="stat-value" id="val-cpu-load">12%</div>
-            <div class="stat-sub">وضعیت بهینه و خنک</div>
+          <!-- KPI 2 -->
+          <div class="glass-panel kpi-card">
+            <div class="kpi-header"><span>ترافیک لحظه‌ای</span><span>⚡</span></div>
+            <div class="kpi-value font-mono" id="kpi-traffic">42.8 <span style="font-size:0.8rem; font-weight:500;">Mbps</span></div>
+            <div class="kpi-sub">↓ 34.2 | ↑ 8.6 Mbps</div>
           </div>
-          <div class="glass-panel stat-card">
-            <div class="stat-header"><span>حافظه موقت (RAM)</span><span>💾</span></div>
-            <div class="stat-value" id="val-ram-usage" style="font-size:1.3rem;">786 MB آزاد</div>
-            <div class="stat-sub">کافی برای کانتینر Mihomo</div>
+          <!-- KPI 3 -->
+          <div class="glass-panel kpi-card">
+            <div class="kpi-header"><span>Latency میانگین</span><span>⏱️</span></div>
+            <div class="kpi-value font-mono" id="kpi-latency" style="color:var(--success);">24 <span style="font-size:0.8rem; font-weight:500;">ms</span></div>
+            <div class="kpi-sub">تأخیر بهینه</div>
           </div>
-          <div class="glass-panel stat-card">
-            <div class="stat-header"><span>مدت زمان روشن بودن (Uptime)</span><span>⏱️</span></div>
-            <div class="stat-value" id="val-uptime" style="font-size:1.4rem;">14d 06:42</div>
-            <div class="stat-sub">اتصال پایدار بدون ریست</div>
+          <!-- KPI 4 -->
+          <div class="glass-panel kpi-card">
+            <div class="kpi-header"><span>وضعیت Mihomo</span><span>🚀</span></div>
+            <div class="kpi-value" style="font-size:1.15rem; color:var(--success);">Active</div>
+            <div class="kpi-sub font-mono">Port :9090 | USB</div>
           </div>
-        </div>
-
-        <!-- WAN Dual Monitor Cards -->
-        <h3 style="margin-bottom:16px; font-weight:700;">📡 وضعیت پیوند‌های اینترنت (Multi-WAN)</h3>
-        <div class="wan-grid">
-          <!-- WAN 1: MobinNet -->
-          <div id="wan1-card" class="glass-panel wan-card active-wan">
-            <span id="wan1-badge" class="wan-card-badge badge-active">فعال (Default Route)</span>
-            <h3 style="font-size:1.25rem; margin-bottom:8px;">WAN-1: مبین‌نت (MobinNet LTE)</h3>
-            <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:16px;">اینترفیس: ether2 | نوع: DHCP Client | متریک: ۱</p>
-            <div style="display:flex; justify-content:space-between; align-items:flex-end;">
-              <div>
-                <div style="font-size:0.8rem; color:var(--text-muted);">پینگ و زمان پاسخ:</div>
-                <div id="wan1-latency" class="font-mono" style="font-size:1.8rem; font-weight:700; color:var(--success);">32 ms</div>
-              </div>
-              <div class="status-badge" style="background:rgba(16,185,129,0.1); color:var(--success);">
-                پکت‌لاس: ۰٪
-              </div>
-            </div>
+          <!-- KPI 5 -->
+          <div class="glass-panel kpi-card">
+            <div class="kpi-header"><span>وضعیت L2TP / VPN</span><span>🔒</span></div>
+            <div class="kpi-value" style="font-size:1.15rem; color:#38bdf8;">Standby</div>
+            <div class="kpi-sub">Policy Routing</div>
           </div>
-
-          <!-- WAN 2: TCT -->
-          <div id="wan2-card" class="glass-panel wan-card">
-            <span id="wan2-badge" class="wan-card-badge badge-standby">آماده‌باش (Standby)</span>
-            <h3 style="font-size:1.25rem; margin-bottom:8px;">WAN-2: مخابرات (TCT VDSL)</h3>
-            <p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:16px;">اینترفیس: ether1 | نوع: DHCP Client | متریک: ۲</p>
-            <div style="display:flex; justify-content:space-between; align-items:flex-end;">
-              <div>
-                <div style="font-size:0.8rem; color:var(--text-muted);">پینگ و زمان پاسخ:</div>
-                <div id="wan2-latency" class="font-mono" style="font-size:1.8rem; font-weight:700; color:var(--warning);">18 ms</div>
-              </div>
-              <div class="status-badge" style="background:rgba(245,158,11,0.1); color:var(--warning);">
-                پکت‌لاس: ۰٪
-              </div>
-            </div>
+          <!-- KPI 6 -->
+          <div class="glass-panel kpi-card">
+            <div class="kpi-header"><span>سلامت کلی</span><span>🎯</span></div>
+            <div class="kpi-value font-mono" style="color:var(--success);">98%</div>
+            <div class="kpi-sub">Zero-Lockout Safe</div>
           </div>
         </div>
 
-        <!-- Fast Actions & Philosophy Banner -->
-        <div class="glass-panel" style="padding:20px; display:flex; justify-content:space-between; align-items:center;">
+        <!-- Row 2: Two Large Glass Panels -->
+        <div class="dashboard-row-2">
+          
+          <!-- Panel 1: 24h Traffic Graph -->
+          <div class="glass-panel chart-container">
+            <div class="chart-header">
+              <div>
+                <h3 style="font-size:1.1rem; color:#fff;">نمودار ترافیک مصرفی ۲۴ ساعته</h3>
+                <span style="font-size:0.8rem; color:var(--text-muted);">پایش تجمیعی پهنای باند ورودی و خروجی</span>
+              </div>
+              <span class="status-badge" style="color:var(--primary);">زنده (Live)</span>
+            </div>
+            
+            <!-- Sleek SVG Vector Graph -->
+            <svg class="chart-svg" viewBox="0 0 500 160">
+              <defs>
+                <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stop-color="#06b6d4" stop-opacity="0.35"/>
+                  <stop offset="100%" stop-color="#06b6d4" stop-opacity="0.0"/>
+                </linearGradient>
+              </defs>
+              <path d="M 0,140 Q 60,110 120,80 T 240,40 T 360,90 T 500,30 L 500,160 L 0,160 Z" fill="url(#cyanGrad)"/>
+              <path d="M 0,140 Q 60,110 120,80 T 240,40 T 360,90 T 500,30" fill="none" stroke="#06b6d4" stroke-width="2.5"/>
+              <circle cx="500" cy="30" r="4" fill="#06b6d4"/>
+            </svg>
+            <div style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-muted); margin-top:8px;" class="font-mono">
+              <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>اکنون</span>
+            </div>
+          </div>
+
+          <!-- Panel 2: Dynamic Multi-WAN Status Table -->
+          <div class="glass-panel chart-container">
+            <div class="chart-header">
+              <div>
+                <h3 style="font-size:1.1rem; color:#fff;">جدول وضعیت خطوط اینترنت (WAN)</h3>
+                <span style="font-size:0.8rem; color:var(--text-muted);">قابلیت تغییر نام دلخواه برای هر اپراتور</span>
+              </div>
+              <button id="btn-manual-failover" class="btn btn-outline" style="font-size:0.8rem; padding:6px 12px;">
+                🔄 سوئیچ خط
+              </button>
+            </div>
+
+            <div class="data-table-container">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>نام دلخواه</th>
+                    <th>پورت</th>
+                    <th>نوع</th>
+                    <th>Latency</th>
+                    <th>پکت‌لاس</th>
+                    <th>وضعیت</th>
+                  </tr>
+                </thead>
+                <tbody id="dynamic-wans-table-body">
+                  <!-- Injected via JavaScript -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Row 3: 3 Bottom Cards -->
+        <div class="dashboard-row-3">
+          
+          <!-- Card 1: Active Route -->
+          <div class="glass-panel info-card">
+            <div>
+              <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                <span class="status-badge">مسیر یابی</span>
+                <span class="status-dot"></span>
+              </div>
+              <h4 style="margin-bottom:6px; color:#fff;">Active Route فعلی</h4>
+              <p class="font-mono" style="font-size:0.85rem; color:#38bdf8;">0.0.0.0/0 -> 192.168.1.1</p>
+              <p style="font-size:0.82rem; color:var(--text-muted); margin-top:4px;">ترافیک از خط پیش‌فرض با اولویت Distance 1 در جریان است.</p>
+            </div>
+            <div style="margin-top:12px; font-size:0.78rem; color:var(--success);">✓ مانیتورینگ پینگ فعال</div>
+          </div>
+
+          <!-- Card 2: Last Applied Plan -->
+          <div class="glass-panel info-card">
+            <div>
+              <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                <span class="status-badge" style="color:#a855f7;">تراکنش‌ها</span>
+                <span style="font-size:0.75rem; color:var(--text-muted);">تاریخچه</span>
+              </div>
+              <h4 style="margin-bottom:6px; color:#fff;">آخرین Plan اجرا شده</h4>
+              <p id="card-last-plan-title" style="font-size:0.85rem; color:#fff;">Generic Multi-WAN Smart Failover</p>
+              <p style="font-size:0.82rem; color:var(--text-muted); margin-top:4px;">۲ مرحله با بک‌آپ خودکار و بدون قطعی اعمال شد.</p>
+            </div>
+            <button class="btn btn-outline" onclick="switchTab('plan')" style="margin-top:12px; font-size:0.78rem; padding:6px 10px;">
+              مشاهده جزئیات Plan →
+            </button>
+          </div>
+
+          <!-- Card 3: AI Recommendation -->
+          <div class="glass-panel info-card" style="border-right:3px solid var(--primary);">
+            <div>
+              <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+                <span class="status-badge" style="color:var(--primary);">پیشنهاد هوش مصنوعی</span>
+                <span>💡</span>
+              </div>
+              <h4 style="margin-bottom:6px; color:#fff;">بهینه‌سازی Policy Routing</h4>
+              <p style="font-size:0.82rem; color:var(--text-muted);">
+                ترافیک‌های داخلی بانک‌ها شناسایی شد؛ می‌توانید پلن تفکیک ترافیک ایران و خارج را فعال کنید.
+              </p>
+            </div>
+            <button class="btn btn-primary" onclick="compileProfileToPlan('Iran-Direct-Foreign-Proxy')" style="margin-top:12px; font-size:0.8rem; padding:7px 12px;">
+              تولید Plan این پیشنهاد ⚡
+            </button>
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- TAB 2: ROUTERS INVENTORY -->
+      <section id="tab-routers" class="tab-pane">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
           <div>
-            <h4 style="color:#fff; margin-bottom:4px;">🔒 اصل کلیدی RouterPilot: امنیت قبل از اعمال</h4>
-            <p style="color:var(--text-muted); font-size:0.88rem;">
-              تمام تغییرات از مسیر <code class="font-mono">Connect → Discover → Backup → Plan → Preview → Apply (Safe Mode) → Test → Rollback</code> عبور می‌کنند.
-            </p>
+            <h2>مدیریت روترها (Multi-Router Management)</h2>
+            <p style="color:var(--text-muted);">فهرست تجهیزات شبکه متصل یا آماده اتصال</p>
           </div>
-          <button class="btn btn-outline" onclick="switchTab('plan')">مشاهده موتور Plan →</button>
+          <button class="btn btn-primary" onclick="alert('فرم افزودن روتر جدید')">➕ افزودن روتر جدید</button>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="glass-panel stat-card" style="border-right:3px solid var(--success);">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <h3>RB5009UG+S+IN</h3>
+              <span class="status-badge" style="color:var(--success);">آنلاین (Active)</span>
+            </div>
+            <p class="font-mono" style="color:var(--text-muted); font-size:0.88rem; margin:8px 0;">172.16.20.1 (RouterOS 7.15.3)</p>
+            <div style="display:flex; gap:8px; margin-top:12px;">
+              <button class="btn btn-outline" style="font-size:0.8rem; padding:6px 12px;" onclick="switchTab('discovery')">کشف Discovery</button>
+              <button class="btn btn-primary" style="font-size:0.8rem; padding:6px 12px;" onclick="switchTab('dashboard')">داشبورد زنده</button>
+            </div>
+          </div>
         </div>
       </section>
 
-      <!-- TAB 2: DISCOVERY -->
+      <!-- TAB 3: DISCOVERY -->
       <section id="tab-discovery" class="tab-pane">
         <h2 style="margin-bottom:8px;">🔍 نتیجه شناسایی خودکار روتر (Discovery)</h2>
         <p style="color:var(--text-muted); margin-bottom:24px;">تمام اینترفیس‌ها، روت‌ها، فایروال و وضعیت کانتینر بدون دخالت دست استخراج شده‌اند.</p>
@@ -209,7 +321,7 @@
         </div>
       </section>
 
-      <!-- TAB 3: PLAN BUILDER -->
+      <!-- TAB 4: PLAN BUILDER -->
       <section id="tab-plan" class="tab-pane">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
           <div>
@@ -238,7 +350,7 @@
             <tbody id="plan-steps-table-body">
               <tr>
                 <td colspan="7" style="text-align:center; padding:32px; color:var(--text-muted);">
-                  هیچ Plan فعالی وجود ندارد. لطفاً از تب «پروفایل‌های شبکه» یک پروفایل را انتخاب فرمایید.
+                  هیچ Plan فعالی وجود ندارد. لطفاً از طریق AI Advisor یا کتابخانه پروفایل‌ها یک پلن بسازید.
                 </td>
               </tr>
             </tbody>
@@ -253,34 +365,26 @@
         </div>
       </section>
 
-      <!-- TAB 4: PROFILES -->
-      <section id="tab-profiles" class="tab-pane">
-        <h2 style="margin-bottom:8px;">🛡️ پروفایل‌های آماده و آزمایش‌شده</h2>
-        <p style="color:var(--text-muted); margin-bottom:24px;">به جای کانفیگ دستی و پرریسک، از پروفایل‌های استاندارد برای تولید Plan استفاده کنید.</p>
-        
-        <div id="profiles-grid" class="stats-grid"></div>
-      </section>
-
-      <!-- TAB 5: MIHOMO CENTER -->
+      <!-- TAB 5: MIHOMO -->
       <section id="tab-mihomo" class="tab-pane">
         <h2 style="margin-bottom:8px;">🚀 مرکز کانتینر Mihomo (Clash Meta)</h2>
         <p style="color:var(--text-muted); margin-bottom:24px;">نصب هوشمند، گروه‌بندی خودکار بر اساس تأخیر و مدیریت ترافیک تحریم/فیلترینگ.</p>
 
-        <div class="stats-grid">
-          <div class="glass-panel stat-card">
-            <div class="stat-header"><span>سازگاری سخت‌افزار</span><span>✅</span></div>
-            <div class="stat-value" style="font-size:1.4rem; color:var(--success);">کاملاً سازگار</div>
-            <div class="stat-sub">معماری ARM64 + رم ۱ گیگابایت</div>
+        <div class="kpi-grid">
+          <div class="glass-panel kpi-card">
+            <div class="kpi-header"><span>سازگاری سخت‌افزار</span><span>✅</span></div>
+            <div class="kpi-value" style="font-size:1.3rem; color:var(--success);">سازگار</div>
+            <div class="kpi-sub">ARM64 + رم ۱ گیگابایت</div>
           </div>
-          <div class="glass-panel stat-card">
-            <div class="stat-header"><span>فضای ذخیره‌سازی کانتینر</span><span>💽</span></div>
-            <div class="stat-value" style="font-size:1.4rem;">USB Disk (14 GB)</div>
-            <div class="stat-sub">حفاظت از حافظه داخلی NAND</div>
+          <div class="glass-panel kpi-card">
+            <div class="kpi-header"><span>ذخیره‌سازی کانتینر</span><span>💽</span></div>
+            <div class="kpi-value" style="font-size:1.3rem;">USB (14 GB)</div>
+            <div class="kpi-sub">محافظت از حافظه داخلی</div>
           </div>
-          <div class="glass-panel stat-card">
-            <div class="stat-header"><span>پورت REST API</span><span>🔌</span></div>
-            <div class="stat-value font-mono" style="font-size:1.4rem;">:9090</div>
-            <div class="stat-sub">کنترل از طریق MetaCubeX</div>
+          <div class="glass-panel kpi-card">
+            <div class="kpi-header"><span>پورت REST API</span><span>🔌</span></div>
+            <div class="kpi-value font-mono" style="font-size:1.3rem;">:9090</div>
+            <div class="kpi-sub">MetaCubeX Ready</div>
           </div>
         </div>
 
@@ -296,40 +400,51 @@
         </div>
       </section>
 
-      <!-- TAB 6: AI ADVISOR -->
+      <!-- TAB 6: AI ADVISOR & INSTANT PLAN GENERATOR -->
       <section id="tab-ai" class="tab-pane">
-        <h2 style="margin-bottom:8px;">🤖 مشاور هوشمند (Local & Cloud AI Advisor)</h2>
-        <p style="color:var(--text-muted); margin-bottom:24px;">ترکیب Rule Engine قطعی و رایگان با مدل‌های هوش مصنوعی (از طریق پروکسی امن).</p>
+        <h2 style="margin-bottom:8px;">🤖 مشاور هوشمند و سازنده کانفیگ فوری (AI Advisor & Plan Engine)</h2>
+        <p style="color:var(--text-muted); margin-bottom:24px;">هر امکانی از میکروتیک را با متن ساده بخواهید؛ هوش مصنوعی بلافاصله Plan قابل‌بررسی و ایمن تولید می‌کند.</p>
 
-        <div class="stats-grid" style="margin-bottom:24px;">
-          <div class="glass-panel stat-card">
-            <div class="stat-header"><span>امتیاز سلامت کانفیگ روتر</span><span>🎯</span></div>
-            <div id="ai-health-score" class="stat-value" style="color:var(--primary);">-- / 100</div>
-            <div id="ai-summary-text" class="stat-sub">در حال ارزیابی...</div>
-          </div>
-        </div>
-
-        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:24px;">
+        <div style="display:grid; grid-template-columns: 1fr 1.2fr; gap:24px;">
           <!-- Diagnostics Findings -->
           <div>
-            <h3 style="margin-bottom:12px;">نتایج بررسی قطعی سیستم (Rule Engine):</h3>
-            <div id="ai-findings-list"></div>
+            <div class="glass-panel stat-card" style="margin-bottom:16px;">
+              <div class="stat-header"><span>امتیاز سلامت کانفیگ روتر</span><span>🎯</span></div>
+              <div id="ai-health-score" class="stat-value" style="color:var(--primary);">98 / 100</div>
+              <div id="ai-summary-text" class="stat-sub">روتر کاملاً سالم و آماده دریافت پلن‌های جدید</div>
+            </div>
+
+            <h3 style="margin-bottom:12px;">نمونه درخواست‌های آماده برای تست فوری:</h3>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <button class="btn btn-outline" style="justify-content:flex-start; text-align:right;" onclick="setAndSendAIPrompt('کانفیگ تونل وایرگارد بین دو نقطه روی پورت 13231')">
+                🔒 کانفیگ تونل WireGuard با رول‌های فایروال
+              </button>
+              <button class="btn btn-outline" style="justify-content:flex-start; text-align:right;" onclick="setAndSendAIPrompt('محدود کردن سرعت دانلود و آپلود شبکه به ۲۰ مگابیت')">
+                ⚡ مدیریت پهنای باند و سرعت با Simple Queue
+              </button>
+              <button class="btn btn-outline" style="justify-content:flex-start; text-align:right;" onclick="setAndSendAIPrompt('پورت فورواردینگ پورت 8080 برای دوربین مداربسته')">
+                📹 انتقال پورت (Port Forwarding / DST-NAT)
+              </button>
+              <button class="btn btn-outline" style="justify-content:flex-start; text-align:right;" onclick="setAndSendAIPrompt('فیل‌اور هوشمند بین اینترنت شاتل و همراه اول')">
+                🌐 فیل‌اور اختصاصی بین دو اپراتور دلخواه
+              </button>
+            </div>
           </div>
 
-          <!-- Chat Dialog -->
+          <!-- Chat Dialog & Plan Creator -->
           <div class="glass-panel chat-box">
             <div style="padding:16px; border-bottom:1px solid var(--glass-border); display:flex; justify-content:space-between; align-items:center;">
               <strong>گفتگو با مشاور هوشمند RouterPilot</strong>
-              <span class="status-badge" style="font-size:0.75rem;">SOCKS-Ready</span>
+              <span class="status-badge" style="font-size:0.75rem;">SOCKS-Aware</span>
             </div>
             <div id="chat-messages" class="chat-messages">
               <div class="chat-bubble bot">
-                سلام! من مشاور هوشمند روتر شما هستم. وضعیت فعلی اینترفیس‌ها، روت‌ها و فایروال را بررسی کرده‌ام. هر سؤالی در مورد بهینه‌سازی یا رفع مشکل اتصال دارید مطرح کنید.
+                سلام! من دستیار هوشمند روتر شما هستم. هر نیازی از میکروتیک دارید (از وایرگارد و فیل‌اور تا منگل، روتینگ و کنترل سرعت) را به زبان ساده بنویسید تا بلافاصله Plan اجرایی آن را تولید کنم.
               </div>
             </div>
             <div class="chat-input-row">
-              <input id="input-ai-prompt" type="text" placeholder="مثال: چطور ترافیک بانک‌ها را از مبین‌نت و بقیه را از تونل عبور دهم؟">
-              <button id="btn-ai-send" class="btn btn-primary">ارسال</button>
+              <input id="input-ai-prompt" type="text" placeholder="مثلاً: یک اینترفیس وایرگارد برای من بساز...">
+              <button id="btn-ai-send" class="btn btn-primary">ارسال و ساخت Plan</button>
             </div>
           </div>
         </div>
@@ -372,7 +487,7 @@
               <input id="cfg-user" type="text" value="admin" style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
             </div>
             <div>
-              <label style="font-size:0.85rem; color:var(--text-muted);">رمز عبور (ذخیره‌شده در Windows Credential Manager):</label>
+              <label style="font-size:0.85rem; color:var(--text-muted);">رمز عبور (Windows Credential Manager):</label>
               <input id="cfg-pass" type="password" placeholder="••••••••" style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
             </div>
           </div>
