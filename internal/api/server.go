@@ -75,6 +75,7 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/ai/ask", s.handleAIAsk)
 	mux.HandleFunc("/api/audit/logs", s.handleAuditLogs)
 	mux.HandleFunc("/api/proxy", s.handleProxy)
+	mux.HandleFunc("/api/proxy/test", s.handleProxyTest)
 	mux.HandleFunc("/api/routers/switch", s.handleRouterSwitch)
 }
 
@@ -298,16 +299,29 @@ func (s *Server) handleAIAnalyze(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleAIAsk(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		Prompt string `json:"prompt"`
+		Prompt       string `json:"prompt"`
+		Provider     string `json:"provider"`
+		BaseURL      string `json:"base_url"`
+		APIKey       string `json:"api_key"`
+		Model        string `json:"model"`
+		SocksEnabled bool   `json:"socks_enabled"`
+		SocksAddr    string `json:"socks_addr"`
 	}
 	_ = json.NewDecoder(r.Body).Decode(&req)
+
+	if req.SocksAddr != "" {
+		s.proxyMgr.SetSocks5(req.SocksAddr, req.SocksEnabled)
+	}
 
 	s.mu.RLock()
 	disc := s.lastDiscovery
 	s.mu.RUnlock()
 
 	ans, _ := s.aiAdvisor.AskLLM(r.Context(), req.Prompt, disc)
-	jsonResponse(w, http.StatusOK, map[string]string{"answer": ans})
+	jsonResponse(w, http.StatusOK, map[string]string{
+		"answer": ans,
+		"source": fmt.Sprintf("%s (RouterPilot AI)", req.Provider),
+	})
 }
 
 func (s *Server) handleAuditLogs(w http.ResponseWriter, r *http.Request) {
@@ -327,6 +341,20 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 
 	jsonResponse(w, http.StatusOK, map[string]any{
 		"status": "ready",
+	})
+}
+
+func (s *Server) handleProxyTest(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		SocksEnabled bool   `json:"socks_enabled"`
+		SocksAddr    string `json:"socks_addr"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	s.proxyMgr.SetSocks5(req.SocksAddr, req.SocksEnabled)
+	ok, msg, dur := s.proxyMgr.TestProxyConnection(r.Context(), "https://generativelanguage.googleapis.com")
+	jsonResponse(w, http.StatusOK, map[string]any{
+		"success": ok,
+		"message": fmt.Sprintf("%s (تأخیر: %v)", msg, dur.Round(time.Millisecond)),
 	})
 }
 

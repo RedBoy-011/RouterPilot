@@ -237,6 +237,109 @@ PROFILES_DATA = [
     }
 ]
 
+# ========================================================
+# SOCKS5 Tunnel & Direct HTTP Helper (Pure Standard Library)
+# ========================================================
+
+def make_socks5_connection(target_host, target_port, socks_addr="127.0.0.1:7890", timeout=8):
+    """Establishes a TCP connection to target_host:target_port through SOCKS5 proxy via RFC 1928 handshake."""
+    import socket, struct
+    parts = socks_addr.split(":")
+    s_host = parts[0]
+    s_port = int(parts[1]) if len(parts) > 1 else 7890
+    s = socket.create_connection((s_host, s_port), timeout=timeout)
+    # 1. Greeting (Version 5, 1 auth method: 0 = No auth)
+    s.sendall(b"\x05\x01\x00")
+    resp = s.recv(2)
+    if len(resp) < 2 or resp[0] != 5 or resp[1] != 0:
+        raise Exception("اتصال به پروکسی SOCKS5 ناموفق بود (پروکسی درخواست را رد کرد یا در حال اجرا نیست).")
+    # 2. Connection request (CMD=1 Connect, ATYP=3 Domain name)
+    domain_b = target_host.encode('idna')
+    s.sendall(b"\x05\x01\x00\x03" + bytes([len(domain_b)]) + domain_b + struct.pack("!H", target_port))
+    res = s.recv(4)
+    if len(res) < 4 or res[1] != 0:
+        err_code = res[1] if len(res) >= 2 else -1
+        raise Exception(f"پروکسی نتوانست به سرور مقصد متصل شود (کد خطای SOCKS: {err_code})")
+    atyp = res[3]
+    if atyp == 1: s.recv(6)
+    elif atyp == 3: s.recv(s.recv(1)[0] + 2)
+    elif atyp == 4: s.recv(18)
+    return s
+
+def http_post_request(url, headers, payload_bytes, socks_enabled=False, socks_addr="127.0.0.1:7890", timeout=15):
+    """Executes an HTTP/HTTPS POST request either directly or routed through SOCKS5 proxy."""
+    import urllib.parse, urllib.request, ssl
+    parsed = urllib.parse.urlparse(url)
+    target_host = parsed.hostname
+    target_port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    path = parsed.path or "/"
+    if parsed.query: path += "?" + parsed.query
+
+    if not socks_enabled:
+        req = urllib.request.Request(url, data=payload_bytes, headers=headers)
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status, resp.read().decode("utf-8")
+    else:
+        raw_sock = make_socks5_connection(target_host, target_port, socks_addr, timeout=timeout)
+        if parsed.scheme == "https":
+            ctx = ssl.create_default_context()
+            sock = ctx.wrap_socket(raw_sock, server_hostname=target_host)
+        else:
+            sock = raw_sock
+
+        req_lines = [
+            f"POST {path} HTTP/1.1",
+            f"Host: {target_host}",
+            f"Content-Length: {len(payload_bytes)}",
+            "Connection: close"
+        ]
+        for k, v in headers.items():
+            if k.lower() not in ["host", "content-length", "connection"]:
+                req_lines.append(f"{k}: {v}")
+
+        sock.sendall("\r\n".join(req_lines).encode("utf-8") + b"\r\n\r\n" + payload_bytes)
+        raw_resp = b""
+        while True:
+            chunk = sock.recv(4096)
+            if not chunk: break
+            raw_resp += chunk
+        sock.close()
+
+        parts = raw_resp.split(b"\r\n\r\n", 1)
+        header_text = parts[0].decode("utf-8", errors="ignore")
+        status_code = 200
+        if header_text and " " in header_text.splitlines()[0]:
+            try:
+                status_code = int(header_text.splitlines()[0].split(" ")[1])
+            except Exception:
+                status_code = 200
+        body_text = parts[1].decode("utf-8", errors="ignore") if len(parts) > 1 else ""
+        return status_code, body_text
+
+def test_socks_connectivity(socks_enabled=True, socks_addr="127.0.0.1:7890", timeout=6):
+    """Tests internet connectivity to Google servers directly or via SOCKS5."""
+    import time
+    start = time.time()
+    try:
+        if not socks_enabled:
+            import urllib.request, urllib.error
+            req = urllib.request.Request("https://generativelanguage.googleapis.com", headers={"User-Agent": "RouterPilot/1.2"})
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    pass
+            except urllib.error.HTTPError:
+                pass
+            elapsed_ms = int((time.time() - start) * 1000)
+            return True, f"اتصال مستقیم (Direct بدون ساکس) به اینترنت برقرار است. پینگ: {elapsed_ms}ms"
+        else:
+            s = make_socks5_connection("generativelanguage.googleapis.com", 443, socks_addr, timeout=timeout)
+            s.close()
+            elapsed_ms = int((time.time() - start) * 1000)
+            return True, f"اتصال به پروکسی SOCKS5 ({socks_addr}) و دسترسی به Google برقرار است. پینگ: {elapsed_ms}ms"
+    except Exception as ex:
+        elapsed_ms = int((time.time() - start) * 1000)
+        return False, f"خطای ارتباط: {str(ex)}"
+
 class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=WEB_DIR, **kwargs)
@@ -412,41 +515,94 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
                 ]
             })
 
+        elif self.path == "/api/proxy/test":
+            socks_enabled = req_data.get("socks_enabled", True)
+            socks_addr = req_data.get("socks_addr", "127.0.0.1:7890")
+            success, message = test_socks_connectivity(socks_enabled, socks_addr)
+            self.send_json(200, {"success": success, "message": message})
+
         elif self.path == "/api/ai/ask":
             prompt = req_data.get("prompt", "")
             provider = req_data.get("provider", "rule_engine")
             base_url = req_data.get("base_url", "")
             api_key = req_data.get("api_key", "")
             model = req_data.get("model", "")
+            socks_enabled = req_data.get("socks_enabled", True)
+            socks_addr = req_data.get("socks_addr", "127.0.0.1:7890")
 
-            # If user configured external Ollama / LLM endpoint, attempt connection
             llm_answered = False
             llm_text = ""
-            if provider in ["ollama", "openai", "groq"] and base_url:
-                try:
-                    import urllib.request
-                    url = f"{base_url.rstrip('/')}/chat/completions"
-                    headers = {"Content-Type": "application/json"}
-                    if api_key:
-                        headers["Authorization"] = f"Bearer {api_key}"
-                    payload = json.dumps({
-                        "model": model or "qwen2.5:7b",
-                        "messages": [
-                            {"role": "system", "content": "You are RouterPilot AI, an expert MikroTik RouterOS network engineer. Answer concisely and professionally in Persian."},
-                            {"role": "user", "content": prompt}
+            error_msg = ""
+
+            # 1. Google Gemini API
+            if provider == "gemini":
+                if not api_key:
+                    error_msg = "کلید API برای Google Gemini وارد نشده است. لطفاً در بخش تنظیمات کلید رایگان خود را از aistudio.google.com وارد کنید."
+                else:
+                    target_model = model or "gemini-1.5-flash"
+                    gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{target_model}:generateContent?key={api_key}"
+                    payload_dict = {
+                        "contents": [
+                            {
+                                "role": "user",
+                                "parts": [{"text": prompt}]
+                            }
                         ],
-                        "temperature": 0.4
-                    }).encode("utf-8")
-                    req = urllib.request.Request(url, data=payload, headers=headers)
-                    with urllib.request.urlopen(req, timeout=5) as resp:
-                        res_json = json.loads(resp.read().decode("utf-8"))
-                        llm_text = res_json["choices"][0]["message"]["content"]
+                        "systemInstruction": {
+                            "parts": [{"text": "You are RouterPilot AI, an expert MikroTik RouterOS and network engineer. Answer concisely and professionally in Persian. Suggest concrete RouterOS commands when relevant."}]
+                        }
+                    }
+                    payload_bytes = json.dumps(payload_dict).encode("utf-8")
+                    headers = {"Content-Type": "application/json"}
+                    try:
+                        status, resp_body = http_post_request(gemini_url, headers, payload_bytes, socks_enabled, socks_addr, timeout=15)
+                        resp_json = json.loads(resp_body) if resp_body else {}
+                        if status == 200 and "candidates" in resp_json and len(resp_json["candidates"]) > 0:
+                            parts = resp_json["candidates"][0].get("content", {}).get("parts", [])
+                            if parts:
+                                llm_text = parts[0].get("text", "")
+                                llm_answered = True
+                        elif "error" in resp_json:
+                            error_msg = f"پاسخ خطای Google Gemini: {resp_json['error'].get('message', 'Unknown error')}"
+                        else:
+                            error_msg = f"پاسخ غیرمنتظره از گوگل (کد وضعیت: {status})"
+                    except Exception as ex:
+                        error_msg = f"خطا در ارسال درخواست به Google Gemini: {str(ex)}"
+                        if socks_enabled:
+                            error_msg += f"\n💡 نکته: بررسی کنید پروکسی SOCKS5 روی {socks_addr} فعال باشد. اگر VPN سیستمی دارید، می‌توانید تیک ساکس را بردارید."
+                        else:
+                            error_msg += "\n💡 نکته: به دلیل تحریم یا فیلترینگ، اتصال مستقیم به گوگل ممکن است مسدود باشد. می‌توانید تیک ساکس پروکسی را فعال کنید."
+
+            # 2. Ollama / OpenAI / Groq
+            elif provider in ["ollama", "openai", "groq"]:
+                default_url = "http://localhost:11434/v1" if provider == "ollama" else ("https://api.groq.com/openai/v1" if provider == "groq" else "https://api.openai.com/v1")
+                api_endpoint = (base_url or default_url).rstrip('/') + "/chat/completions"
+                use_socks = socks_enabled if provider != "ollama" else False
+                payload_dict = {
+                    "model": model or ("qwen2.5:7b" if provider == "ollama" else ("llama-3.3-70b-versatile" if provider == "groq" else "gpt-4o-mini")),
+                    "messages": [
+                        {"role": "system", "content": "You are RouterPilot AI, an expert MikroTik RouterOS and network engineer. Answer concisely and professionally in Persian."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "temperature": 0.4
+                }
+                payload_bytes = json.dumps(payload_dict).encode("utf-8")
+                headers = {"Content-Type": "application/json"}
+                if api_key:
+                    headers["Authorization"] = f"Bearer {api_key}"
+                try:
+                    status, resp_body = http_post_request(api_endpoint, headers, payload_bytes, use_socks, socks_addr, timeout=15)
+                    resp_json = json.loads(resp_body) if resp_body else {}
+                    if status == 200 and "choices" in resp_json and len(resp_json["choices"]) > 0:
+                        llm_text = resp_json["choices"][0]["message"]["content"]
                         llm_answered = True
+                    elif "error" in resp_json:
+                        error_msg = f"خطای پاسخ مدل: {resp_json['error']}"
                 except Exception as ex:
-                    llm_answered = False
+                    error_msg = f"خطا در ارتباط با {provider}: {str(ex)}"
 
             if llm_answered:
-                self.send_json(200, {"answer": llm_text})
+                self.send_json(200, {"answer": llm_text, "source": f"{provider} (Real LLM)"})
             else:
                 lower = prompt.lower()
                 if "wireguard" in lower or "وایرگارد" in lower:
@@ -460,7 +616,10 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
                 else:
                     ans = f"درخواست شما («{prompt}») توسط مشاور هوشمند بررسی شد.\n\nبر اساس تحلیل وضعیت روتر و اصول ایمنی Zero-Lockout، تغییرات پیشنهادی در قالب یک Plan مرحله‌ای و قابل‌بررسی آماده شده است. می‌توانید دکمه زیر را برای بررسی دستورات بزنید."
 
-                self.send_json(200, {"answer": ans})
+                if error_msg:
+                    ans = f"⚠️ **پیام وضعیت اتصال به {provider}:**\n{error_msg}\n\n---\n🛡️ **پاسخ تحلیلی موتور قوانین داخلی RouterPilot:**\n\n{ans}"
+
+                self.send_json(200, {"answer": ans, "source": "Rule Engine Fallback"})
         else:
             self.send_error(404)
 

@@ -21,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initNavigation();
   initEventListeners();
   initRoutersFleet();
+  loadSettings();
   loadInitialData();
   startHealthPolling();
   renderDynamicWANsTable();
@@ -76,6 +77,29 @@ function initEventListeners() {
   document.getElementById('input-ai-prompt')?.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') sendAIMessage();
   });
+
+  // AI Provider change listener
+  document.getElementById('cfg-ai-provider')?.addEventListener('change', (e) => {
+    handleAIProviderChange(e.target.value);
+  });
+
+  // SOCKS5 Checkbox synchronization
+  document.getElementById('cfg-socks-enabled')?.addEventListener('change', (e) => {
+    const checked = e.target.checked;
+    const chatToggle = document.getElementById('chat-socks-toggle');
+    if (chatToggle) chatToggle.checked = checked;
+    updateSocksUI(checked);
+    autoSaveSettings();
+  });
+
+  document.getElementById('chat-socks-toggle')?.addEventListener('change', (e) => {
+    const checked = e.target.checked;
+    const cfgToggle = document.getElementById('cfg-socks-enabled');
+    if (cfgToggle) cfgToggle.checked = checked;
+    updateSocksUI(checked);
+    autoSaveSettings();
+  });
+
   // Router Dropdown Toggler
   const btnRouterDropdown = document.getElementById('btn-router-dropdown');
   const routerDropdownMenu = document.getElementById('router-dropdown-menu');
@@ -390,7 +414,7 @@ async function executeApplyPlan() {
   }
 }
 
-// AI Message Sender (Prompt-to-Plan)
+// AI Message Sender (Prompt-to-Plan with Google Gemini & SOCKS support)
 async function sendAIMessage() {
   const input = document.getElementById('input-ai-prompt');
   const prompt = input.value.trim();
@@ -401,10 +425,17 @@ async function sendAIMessage() {
   input.value = '';
   chatContainer.scrollTop = chatContainer.scrollHeight;
 
-  const provider = document.getElementById('cfg-ai-provider')?.value || 'rule_engine';
+  const provider = document.getElementById('cfg-ai-provider')?.value || 'gemini';
   const aiUrl = document.getElementById('cfg-ai-url')?.value || '';
   const aiKey = document.getElementById('cfg-ai-key')?.value || '';
   const aiModel = document.getElementById('cfg-ai-model')?.value || '';
+  const socksEnabled = document.getElementById('chat-socks-toggle')?.checked ?? (document.getElementById('cfg-socks-enabled')?.checked ?? true);
+  const socksAddr = document.getElementById('cfg-socks')?.value || '127.0.0.1:7890';
+
+  // Temporary thinking bubble
+  const thinkingId = 'thinking-' + Date.now();
+  chatContainer.innerHTML += `<div id="${thinkingId}" class="chat-bubble bot" style="opacity:0.75;">در حال اتصال و ارسال به ${provider === 'gemini' ? 'Google Gemini' : (provider === 'ollama' ? 'Ollama' : 'مشاور هوشمند')} ${socksEnabled ? '(با ساکس)' : '(بدون ساکس)'}... ⏳</div>`;
+  chatContainer.scrollTop = chatContainer.scrollHeight;
 
   try {
     const res = await fetch('/api/ai/ask', {
@@ -415,12 +446,20 @@ async function sendAIMessage() {
         provider,
         base_url: aiUrl,
         api_key: aiKey,
-        model: aiModel
+        model: aiModel,
+        socks_enabled: socksEnabled,
+        socks_addr: socksAddr
       }),
     });
     const data = await res.json();
+    const thinkingEl = document.getElementById(thinkingId);
+    if (thinkingEl) thinkingEl.remove();
+
+    const sourceBadge = data.source ? `<div style="font-size:0.72rem; color:var(--text-muted); margin-bottom:6px;">پاسخ دریافتی از: <span style="color:var(--primary); font-weight:600;">${data.source}</span> ${socksEnabled ? '🛡️ (SOCKS5)' : '🌐 (Direct)'}</div>` : '';
+
     chatContainer.innerHTML += `
       <div class="chat-bubble bot">
+        ${sourceBadge}
         ${data.answer}
         <div style="margin-top:10px;">
           <button class="btn btn-primary" style="font-size:0.78rem; padding:6px 12px;" onclick="loadAIPlanDirectly('${encodeURIComponent(prompt)}')">
@@ -431,6 +470,8 @@ async function sendAIMessage() {
     `;
     chatContainer.scrollTop = chatContainer.scrollHeight;
   } catch (err) {
+    const thinkingEl = document.getElementById(thinkingId);
+    if (thinkingEl) thinkingEl.remove();
     chatContainer.innerHTML += `<div class="chat-bubble bot" style="color:#ef4444;">خطا: ${err.message}</div>`;
   }
 }
@@ -485,8 +526,9 @@ function saveSettings() {
     host: document.getElementById('cfg-host')?.value || '',
     user: document.getElementById('cfg-user')?.value || '',
     mode: document.getElementById('cfg-mode')?.value || 'simulator',
+    socks_enabled: document.getElementById('cfg-socks-enabled')?.checked ?? true,
     socks: document.getElementById('cfg-socks')?.value || '127.0.0.1:7890',
-    ai_provider: document.getElementById('cfg-ai-provider')?.value || 'rule_engine',
+    ai_provider: document.getElementById('cfg-ai-provider')?.value || 'gemini',
     ai_url: document.getElementById('cfg-ai-url')?.value || '',
     ai_key: document.getElementById('cfg-ai-key')?.value || '',
     ai_model: document.getElementById('cfg-ai-model')?.value || ''
@@ -496,8 +538,146 @@ function saveSettings() {
 
   const isSim = (settings.mode === 'simulator');
   updateConnectionBadge(!isSim, isSim);
+  updateAIProviderBadge(settings.ai_provider);
+  updateSocksUI(settings.socks_enabled);
 
-  alert('💾 تنظیمات با موفقیت ذخیره شد. حالت فعال: ' + (isSim ? 'شبیه‌ساز امن (آفلاین)' : 'اتصال واقعی به روتر'));
+  alert('💾 تنظیمات با موفقیت ذخیره شد. حالت هوش مصنوعی: ' + settings.ai_provider + ' (' + (settings.socks_enabled ? 'با ساکس پروکسی' : 'مستقیم بدون ساکس') + ')');
+}
+
+function autoSaveSettings() {
+  const saved = localStorage.getItem('rp_settings');
+  const current = saved ? JSON.parse(saved) : {};
+  current.socks_enabled = document.getElementById('cfg-socks-enabled')?.checked ?? true;
+  current.socks = document.getElementById('cfg-socks')?.value || '127.0.0.1:7890';
+  localStorage.setItem('rp_settings', JSON.stringify(current));
+}
+
+function loadSettings() {
+  const saved = localStorage.getItem('rp_settings');
+  if (!saved) {
+    // Defaults for Gemini
+    handleAIProviderChange('gemini');
+    return;
+  }
+  try {
+    const s = JSON.parse(saved);
+    if (s.host && document.getElementById('cfg-host')) document.getElementById('cfg-host').value = s.host;
+    if (s.user && document.getElementById('cfg-user')) document.getElementById('cfg-user').value = s.user;
+    if (s.mode && document.getElementById('cfg-mode')) document.getElementById('cfg-mode').value = s.mode;
+    if (s.ai_provider && document.getElementById('cfg-ai-provider')) {
+      document.getElementById('cfg-ai-provider').value = s.ai_provider;
+    }
+    if (s.ai_url && document.getElementById('cfg-ai-url')) document.getElementById('cfg-ai-url').value = s.ai_url;
+    if (s.ai_key && document.getElementById('cfg-ai-key')) document.getElementById('cfg-ai-key').value = s.ai_key;
+    if (s.ai_model && document.getElementById('cfg-ai-model')) document.getElementById('cfg-ai-model').value = s.ai_model;
+    if (s.socks && document.getElementById('cfg-socks')) document.getElementById('cfg-socks').value = s.socks;
+
+    const socksEnabled = (s.socks_enabled !== false);
+    if (document.getElementById('cfg-socks-enabled')) document.getElementById('cfg-socks-enabled').checked = socksEnabled;
+    if (document.getElementById('chat-socks-toggle')) document.getElementById('chat-socks-toggle').checked = socksEnabled;
+    updateSocksUI(socksEnabled);
+    updateAIProviderBadge(s.ai_provider || 'gemini');
+  } catch (e) {
+    console.error('Failed to load settings:', e);
+  }
+}
+
+function handleAIProviderChange(provider) {
+  const urlInput = document.getElementById('cfg-ai-url');
+  const keyInput = document.getElementById('cfg-ai-key');
+  const modelInput = document.getElementById('cfg-ai-model');
+
+  if (provider === 'gemini') {
+    if (urlInput) urlInput.value = 'https://generativelanguage.googleapis.com';
+    if (modelInput) modelInput.value = 'gemini-1.5-flash';
+    if (keyInput) keyInput.placeholder = 'کلید Google Gemini خود را وارد کنید (AIzaSy...)';
+  } else if (provider === 'ollama') {
+    if (urlInput) urlInput.value = 'http://localhost:11434/v1';
+    if (modelInput) modelInput.value = 'qwen2.5:7b';
+    if (keyInput) keyInput.placeholder = 'برای Ollama خالی بگذارید...';
+  } else if (provider === 'groq') {
+    if (urlInput) urlInput.value = 'https://api.groq.com/openai/v1';
+    if (modelInput) modelInput.value = 'llama-3.3-70b-versatile';
+    if (keyInput) keyInput.placeholder = 'کلید Groq API (gsk_...)';
+  } else if (provider === 'openai') {
+    if (urlInput) urlInput.value = 'https://api.openai.com/v1';
+    if (modelInput) modelInput.value = 'gpt-4o-mini';
+    if (keyInput) keyInput.placeholder = 'کلید OpenAI (sk-...)';
+  }
+
+  updateAIProviderBadge(provider);
+}
+
+function updateAIProviderBadge(provider) {
+  const badge = document.getElementById('chat-provider-badge');
+  if (!badge) return;
+  switch (provider) {
+    case 'gemini':
+      badge.innerText = 'Google Gemini API';
+      badge.style.color = 'var(--primary)';
+      break;
+    case 'ollama':
+      badge.innerText = 'Ollama (محلی)';
+      badge.style.color = 'var(--success)';
+      break;
+    case 'groq':
+      badge.innerText = 'Groq Cloud (Llama 3.3)';
+      badge.style.color = '#a855f7';
+      break;
+    case 'openai':
+      badge.innerText = 'OpenAI API';
+      badge.style.color = '#38bdf8';
+      break;
+    default:
+      badge.innerText = 'موتور قوانین آفلاین (Rule Engine)';
+      badge.style.color = '#f59e0b';
+  }
+}
+
+function updateSocksUI(enabled) {
+  const dot = document.getElementById('chat-socks-status-dot');
+  if (dot) {
+    dot.style.background = enabled ? '#10b981' : '#64748b';
+    dot.style.boxShadow = enabled ? '0 0 8px rgba(16,185,129,0.5)' : 'none';
+    dot.title = enabled ? 'ساکس پروکسی فعال' : 'اتصال مستقیم بدون پروکسی';
+  }
+  const addrCont = document.getElementById('socks-addr-container');
+  if (addrCont) {
+    addrCont.style.opacity = enabled ? '1' : '0.6';
+  }
+}
+
+async function testProxyConnection() {
+  const resultEl = document.getElementById('socks-test-result');
+  const socksEnabled = document.getElementById('cfg-socks-enabled')?.checked ?? true;
+  const socksAddr = document.getElementById('cfg-socks')?.value || '127.0.0.1:7890';
+
+  if (resultEl) {
+    resultEl.innerHTML = '<span style="color:var(--primary);">در حال آزمون اتصال اینترنت به سرورهای گوگل... ⏳</span>';
+  }
+
+  try {
+    const res = await fetch('/api/proxy/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        socks_enabled: socksEnabled,
+        socks_addr: socksAddr
+      })
+    });
+    const data = await res.json();
+    if (resultEl) {
+      if (data.success) {
+        resultEl.innerHTML = `<span style="color:var(--success); font-weight:600;">✅ ${data.message}</span>`;
+      } else {
+        resultEl.innerHTML = `<span style="color:#ef4444; font-weight:600;">❌ ${data.message}</span>`;
+      }
+    }
+  } catch (err) {
+    if (resultEl) {
+      resultEl.innerHTML = `<span style="color:#ef4444;">خطای شبکه: ${err.message}</span>`;
+    }
+  }
 }
 
 // ==========================================

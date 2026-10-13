@@ -442,9 +442,18 @@
 
           <!-- Chat Dialog & Plan Creator -->
           <div class="glass-panel chat-box">
-            <div style="padding:16px; border-bottom:1px solid var(--glass-border); display:flex; justify-content:space-between; align-items:center;">
-              <strong>گفتگو با مشاور هوشمند RouterPilot</strong>
-              <span class="status-badge" style="font-size:0.75rem;">SOCKS-Aware</span>
+            <div style="padding:14px 18px; border-bottom:1px solid var(--glass-border); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+              <div>
+                <strong>گفتگو با مشاور هوشمند RouterPilot</strong>
+                <span id="chat-provider-badge" class="status-badge" style="font-size:0.75rem; margin-right:8px; color:var(--primary);">Google Gemini API</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <label style="display:flex; align-items:center; gap:6px; font-size:0.8rem; cursor:pointer; color:var(--text-muted);" title="سوئیچ فعال/غیرفعال کردن ساکس پروکسی">
+                  <input type="checkbox" id="chat-socks-toggle" checked style="accent-color:var(--primary); cursor:pointer;">
+                  <span>ساکس پروکسی (SOCKS5)</span>
+                </label>
+                <span id="chat-socks-status-dot" class="status-dot" style="background:#10b981;" title="پروکسی فعال"></span>
+              </div>
             </div>
             <div id="chat-messages" class="chat-messages">
               <div class="chat-bubble bot">
@@ -540,12 +549,30 @@
             </div>
           </div>
 
-          <h3 style="margin-bottom:16px;">لایه امنیتی SOCKS5 (برای AI و آپدیت‌ها):</h3>
-          <div style="display:flex; flex-direction:column; gap:14px; margin-bottom:24px;">
-            <div>
-              <label style="font-size:0.85rem; color:var(--text-muted);">آدرس پروکسی لوکال SOCKS5:</label>
-              <input id="cfg-socks" type="text" value="127.0.0.1:7890" style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+          <h3 style="margin-bottom:16px;">🌐 تنظیمات پروکسی SOCKS5 (برای Google Gemini و هوش مصنوعی):</h3>
+          <div style="display:flex; flex-direction:column; gap:16px; margin-bottom:24px; background:rgba(255,255,255,0.02); padding:16px; border-radius:12px; border:1px solid var(--glass-border);">
+            
+            <div style="display:flex; align-items:center; gap:10px;">
+              <input type="checkbox" id="cfg-socks-enabled" checked style="width:18px; height:18px; cursor:pointer; accent-color:var(--primary);">
+              <label for="cfg-socks-enabled" style="font-size:0.92rem; font-weight:600; color:#fff; cursor:pointer;">
+                عبور از پروکسی SOCKS5 (جهت رفع تحریم / فیلترینگ)
+              </label>
             </div>
+
+            <p style="font-size:0.82rem; color:var(--text-muted); line-height:1.6; margin:0;">
+              💡 <strong>راهنما:</strong> اگر در ایران هستید و برای اتصال به Gemini از v2rayN، Clash یا Hiddify استفاده می‌کنید، این تیک را فعال نگه دارید.<br>
+              ⚡ <strong>اگر VPN سیستمی دارید یا اینترنت آزاد است:</strong> تیک این گزینه را بردارید تا درخواست‌ها به صورت <u>مستقیم (Direct بدون ساکس)</u> ارسال شوند.
+            </p>
+
+            <div id="socks-addr-container" style="display:flex; flex-direction:column; gap:6px;">
+              <label style="font-size:0.83rem; color:var(--text-muted);">آدرس پروکسی لوکال SOCKS5:</label>
+              <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                <input id="cfg-socks" type="text" value="127.0.0.1:7890" placeholder="127.0.0.1:7890" style="flex:1; min-width:200px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+                <button type="button" id="btn-test-socks" class="btn btn-outline" style="white-space:nowrap; padding:10px 16px;" onclick="testProxyConnection()">🔍 تست اتصال اینترنت</button>
+              </div>
+              <span id="socks-test-result" style="font-size:0.8rem; margin-top:4px;"></span>
+            </div>
+
           </div>
 
           <button class="btn btn-primary" onclick="saveSettings()">💾 ذخیره تنظیمات</button>
