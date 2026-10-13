@@ -470,3 +470,109 @@ table.data-table tr:hover {
 .chat-input-row input:focus {
   border-color: var(--primary);
 }
+
+/* Router Selector Dropdown */
+.router-dropdown-container {
+  position: relative;
+}
+
+.router-selector-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.router-selector-btn:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: var(--glass-border-hover);
+}
+
+.router-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 310px;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(32px);
+  border: 1px solid var(--glass-border-hover);
+  border-radius: 16px;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5);
+  padding: 8px;
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+.router-dropdown-menu.show {
+  display: flex;
+}
+
+.router-dropdown-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  color: var(--text-main);
+  text-decoration: none;
+}
+
+.router-dropdown-item:hover {
+  background: rgba(6, 182, 212, 0.12);
+  color: #fff;
+}
+
+.router-dropdown-item.active {
+  background: rgba(6, 182, 212, 0.2);
+  border-right: 3px solid var(--primary);
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: var(--glass-border);
+  margin: 6px 4px;
+}
+
+/* Modal Box */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(12px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.modal-overlay.show {
+  display: flex;
+}
+
+.modal-box {
+  width: 90%;
+  max-width: 540px;
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(32px);
+  border: 1px solid var(--glass-border-hover);
+  border-radius: 20px;
+  padding: 28px;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.6);
+  animation: modalScale 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalScale {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}

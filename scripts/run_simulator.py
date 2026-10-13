@@ -311,7 +311,18 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
         except Exception:
             req_data = {}
 
-        if self.path == "/api/wan/failover":
+        if self.path == "/api/routers/switch":
+            target_id = req_data.get("id", "r-sim")
+            target_name = req_data.get("name", "روتر")
+            state["audit_logs"].insert(0, {
+                "Timestamp": datetime.now().isoformat(),
+                "Category": "fleet",
+                "Level": "info",
+                "Message": f"سوئیچ به روتر فعال: {target_name} ({target_id})"
+            })
+            self.send_json(200, {"success": True, "active_router": target_id})
+
+        elif self.path == "/api/wan/failover":
             target = req_data.get("target_wan", "WAN-2 (TCT)")
             state["active_wan"] = target
             state["audit_logs"].insert(0, {

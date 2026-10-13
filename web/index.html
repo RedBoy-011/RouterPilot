@@ -96,10 +96,29 @@
       </div>
 
       <div class="topbar-actions">
-        <div id="router-status-badge" class="status-badge" style="color:var(--warning);">
-          <span class="status-dot" style="background:#f59e0b; box-shadow:0 0 8px rgba(245,158,11,0.5);"></span>
-          <span id="topbar-router-label">شبیه‌ساز امن (Simulator Mode)</span>
+        <!-- Router Selector Dropdown -->
+        <div class="router-dropdown-container">
+          <button id="btn-router-dropdown" class="router-selector-btn" type="button" title="انتخاب روتر فعال">
+            <span class="status-dot" id="active-router-dot" style="background:#10b981;"></span>
+            <div style="display:flex; flex-direction:column; align-items:flex-start; line-height:1.2;">
+              <span id="topbar-router-name" style="font-weight:600; font-size:0.88rem;">RB5009 (مرکزی)</span>
+              <span id="topbar-router-type" style="font-size:0.72rem; color:var(--text-muted);">MikroTik ROS 7 • 172.16.20.1</span>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+          
+          <div id="router-dropdown-menu" class="router-dropdown-menu">
+            <div style="padding:6px 10px; font-size:0.75rem; color:var(--text-muted); font-weight:600;">ناوگان روترهای فعال:</div>
+            <div id="router-dropdown-list">
+              <!-- Dynamically populated -->
+            </div>
+            <div class="dropdown-divider"></div>
+            <button type="button" class="btn btn-outline" style="width:100%; font-size:0.8rem; justify-content:center; padding:8px;" onclick="openAddRouterModal()">
+              ➕ افزودن روتر جدید
+            </button>
+          </div>
         </div>
+
         <button id="btn-theme-toggle" class="btn btn-outline" title="تغییر حالت تم">
           🌓
         </button>
@@ -273,26 +292,16 @@
 
       <!-- TAB 2: ROUTERS INVENTORY -->
       <section id="tab-routers" class="tab-pane">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
           <div>
-            <h2>مدیریت روترها (Multi-Router Management)</h2>
-            <p style="color:var(--text-muted);">فهرست تجهیزات شبکه متصل یا آماده اتصال</p>
+            <h2>مدیریت ناوگان روترها (Multi-Router Fleet)</h2>
+            <p style="color:var(--text-muted); font-size:0.9rem;">پیکربندی همزمان و سوئیچ آنی بین میکروتیک (ROS 7 / ROS 6)، اوپن‌دبلیو‌آر‌تی (OpenWrt) و لینوکس</p>
           </div>
-          <button class="btn btn-primary" onclick="alert('فرم افزودن روتر جدید')">➕ افزودن روتر جدید</button>
+          <button class="btn btn-primary" onclick="openAddRouterModal()">➕ افزودن روتر جدید</button>
         </div>
 
-        <div class="kpi-grid">
-          <div class="glass-panel stat-card" style="border-right:3px solid var(--success);">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <h3>RB5009UG+S+IN</h3>
-              <span class="status-badge" style="color:var(--success);">آنلاین (Active)</span>
-            </div>
-            <p class="font-mono" style="color:var(--text-muted); font-size:0.88rem; margin:8px 0;">172.16.20.1 (RouterOS 7.15.3)</p>
-            <div style="display:flex; gap:8px; margin-top:12px;">
-              <button class="btn btn-outline" style="font-size:0.8rem; padding:6px 12px;" onclick="switchTab('discovery')">کشف Discovery</button>
-              <button class="btn btn-primary" style="font-size:0.8rem; padding:6px 12px;" onclick="switchTab('dashboard')">داشبورد زنده</button>
-            </div>
-          </div>
+        <div id="routers-fleet-grid" class="kpi-grid" style="grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));">
+          <!-- Dynamically populated via renderRoutersFleet() -->
         </div>
       </section>
 
@@ -545,6 +554,74 @@
 
     </div>
   </main>
+
+  <!-- Modal: Add / Edit Router -->
+  <div id="modal-add-router" class="modal-overlay">
+    <div class="modal-box">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;">
+        <h3 style="margin:0; font-size:1.15rem; color:#fff;">➕ افزودن روتر جدید به ناوگان</h3>
+        <button type="button" class="btn btn-outline" style="padding:4px 10px; border-radius:50%;" onclick="closeAddRouterModal()">✕</button>
+      </div>
+      
+      <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:18px;">
+        اطلاعات روتر را وارد کنید. RouterPilot ابتدا قابلیت‌های سیستم و سازگاری سخت‌افزار را بررسی خواهد کرد.
+      </p>
+
+      <form id="form-add-router" onsubmit="event.preventDefault(); saveNewRouter();" style="display:flex; flex-direction:column; gap:14px;">
+        <div>
+          <label style="font-size:0.82rem; color:var(--text-muted);">نام دلخواه / موقعیت روتر:</label>
+          <input id="new-router-name" type="text" placeholder="مثلاً: دفتر مرکزی یا شعبه اصفهان" required style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;">
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div>
+            <label style="font-size:0.82rem; color:var(--text-muted);">نوع سیستم‌عامل (OS Adapter):</label>
+            <select id="new-router-os" style="width:100%; margin-top:4px; padding:10px; background:#1e293b; border:1px solid var(--glass-border); border-radius:8px; color:#fff;">
+              <option value="mikrotik_ros7" selected>MikroTik RouterOS 7 (پیشنهادی)</option>
+              <option value="mikrotik_ros6">MikroTik RouterOS 6</option>
+              <option value="openwrt">OpenWrt Linux</option>
+              <option value="linux">Linux Router / VyOS</option>
+              <option value="simulator">شبیه‌ساز تستی (Simulator)</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.82rem; color:var(--text-muted);">آدرس IP / هاست:</label>
+            <input id="new-router-host" type="text" placeholder="مثلاً: 192.168.88.1" required style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div>
+            <label style="font-size:0.82rem; color:var(--text-muted);">پورت اتصال:</label>
+            <input id="new-router-port" type="number" placeholder="443 یا 8728" value="443" style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+          </div>
+          <div>
+            <label style="font-size:0.82rem; color:var(--text-muted);">نوع احراز هویت:</label>
+            <select id="new-router-authtype" style="width:100%; margin-top:4px; padding:10px; background:#1e293b; border:1px solid var(--glass-border); border-radius:8px; color:#fff;">
+              <option value="password" selected>نام کاربری و رمز عبور</option>
+              <option value="ssh_key">کلید امنیتی SSH</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div>
+            <label style="font-size:0.82rem; color:var(--text-muted);">نام کاربری (Username):</label>
+            <input id="new-router-user" type="text" placeholder="مثلاً: admin" required style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+          </div>
+          <div>
+            <label style="font-size:0.82rem; color:var(--text-muted);">کلمه عبور یا کلید:</label>
+            <input id="new-router-pass" type="password" placeholder="••••••••" style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:12px;">
+          <button type="button" class="btn btn-outline" onclick="closeAddRouterModal()">انصراف</button>
+          <button type="submit" class="btn btn-primary">💾 ذخیره و اتصال به روتر</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <script src="js/app.js"></script>
 </body>

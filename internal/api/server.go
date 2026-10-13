@@ -75,6 +75,7 @@ func (s *Server) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/ai/ask", s.handleAIAsk)
 	mux.HandleFunc("/api/audit/logs", s.handleAuditLogs)
 	mux.HandleFunc("/api/proxy", s.handleProxy)
+	mux.HandleFunc("/api/routers/switch", s.handleRouterSwitch)
 }
 
 func jsonResponse(w http.ResponseWriter, status int, data any) {
@@ -328,3 +329,18 @@ func (s *Server) handleProxy(w http.ResponseWriter, r *http.Request) {
 		"status": "ready",
 	})
 }
+
+func (s *Server) handleRouterSwitch(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodPost {
+		var req struct {
+			ID   string `json:"id"`
+			Name string `json:"name"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		s.audit.Log("fleet", "switch", "info", fmt.Sprintf("سوئیچ به روتر فعال: %s (شناسه: %s)", req.Name, req.ID), nil)
+		jsonResponse(w, http.StatusOK, map[string]any{"success": true, "active_router": req.ID})
+		return
+	}
+	jsonResponse(w, http.StatusOK, map[string]any{"status": "ok"})
+}
+
