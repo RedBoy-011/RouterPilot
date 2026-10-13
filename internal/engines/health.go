@@ -1,7 +1,6 @@
 package engines
 
 import (
-	"context"
 	"fmt"
 	"net"
 	"net/http"
