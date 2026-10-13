@@ -39,7 +39,7 @@ func NewServer() *Server {
 	audit := core.NewAuditLogger()
 
 	s := &Server{
-		adapter:      adapter.NewMockRouterAdapter(), // Default to mock simulator for 100% safe testing!
+		adapter:      nil,
 		safety:       safety,
 		planEngine:   core.NewPlanEngine(safety),
 		audit:        audit,
@@ -50,10 +50,6 @@ func NewServer() *Server {
 		profileMgr:   profile.NewManager(),
 		credStore:    security.NewCredentialStore(),
 	}
-
-	// Run initial mock connection
-	_ = s.adapter.Connect(context.Background(), adapter.ConnectionConfig{SimulatorMode: true})
-	s.lastDiscovery, _ = s.adapter.Discover(context.Background())
 
 	return s
 }
@@ -89,12 +85,18 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	connected := s.adapter != nil && s.adapter.IsConnected()
+	activeName := ""
+	if connected && s.lastDiscovery != nil {
+		activeName = s.lastDiscovery.Router.Model
+	}
+
 	jsonResponse(w, http.StatusOK, map[string]any{
-		"connected":      s.adapter != nil && s.adapter.IsConnected(),
-		"active_router":  "MikroTik RouterOS 7",
+		"connected":      connected,
+		"active_router":  activeName,
 		"timestamp":      time.Now(),
 		"has_discovery":  s.lastDiscovery != nil,
-		"simulator_mode": true,
+		"simulator_mode": false,
 	})
 }
 

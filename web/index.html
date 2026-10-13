@@ -99,10 +99,10 @@
         <!-- Router Selector Dropdown -->
         <div class="router-dropdown-container">
           <button id="btn-router-dropdown" class="router-selector-btn" type="button" title="انتخاب روتر فعال">
-            <span class="status-dot" id="active-router-dot" style="background:#10b981;"></span>
+            <span class="status-dot" id="active-router-dot" style="background:#ef4444;"></span>
             <div style="display:flex; flex-direction:column; align-items:flex-start; line-height:1.2;">
-              <span id="topbar-router-name" style="font-weight:600; font-size:0.88rem;">RB5009 (مرکزی)</span>
-              <span id="topbar-router-type" style="font-size:0.72rem; color:var(--text-muted);">MikroTik ROS 7 • 172.16.20.1</span>
+              <span id="topbar-router-name" style="font-weight:600; font-size:0.88rem;">در انتظار اتصال...</span>
+              <span id="topbar-router-type" style="font-size:0.72rem; color:var(--text-muted);">لطفاً روتر خود را متصل کنید</span>
             </div>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:4px;"><polyline points="6 9 12 15 18 9"></polyline></svg>
           </button>
@@ -133,43 +133,55 @@
       <!-- TAB 1: DASHBOARD (v1.1 Modern Layout) -->
       <section id="tab-dashboard" class="tab-pane active">
         
+        <!-- Connection Prompt Banner (Visible when disconnected) -->
+        <div id="banner-connect-prompt" class="glass-panel" style="padding:22px; border:2px dashed rgba(6,182,212,0.4); text-align:center; margin-bottom:20px; background:rgba(6,182,212,0.04); border-radius:14px; display:none;">
+          <div style="font-size:2rem; margin-bottom:8px;">🔌</div>
+          <h3 style="color:#fff; margin-bottom:6px;">هیچ روتری متصل نیست</h3>
+          <p style="color:var(--text-muted); font-size:0.9rem; max-width:600px; margin:0 auto 16px;">
+            برای پایش زنده ترافیک، شناسایی خودکار اینترفیس‌ها و اعمال پلن‌های هوشمند، مشخصات اتصال روتر خود (IP، نام کاربری و رمز عبور) را وارد فرمایید.
+          </p>
+          <button type="button" class="btn btn-primary" onclick="openAddRouterModal()" style="padding:10px 22px; font-size:0.9rem;">
+            ➕ اتصال به روتر جدید
+          </button>
+        </div>
+
         <!-- Row 1: 6 KPI Glass Cards -->
         <div class="kpi-grid">
           <!-- KPI 1 -->
           <div class="glass-panel kpi-card">
             <div class="kpi-header"><span>Active WAN</span><span>📶</span></div>
-            <div class="kpi-value font-mono" id="kpi-active-wan" style="font-size:1.25rem; color:var(--primary);">WAN-1</div>
-            <div class="kpi-sub" id="kpi-active-wan-sub">اینترنت اصلی</div>
+            <div class="kpi-value font-mono" id="kpi-active-wan" style="font-size:1.25rem; color:var(--primary);">---</div>
+            <div class="kpi-sub" id="kpi-active-wan-sub">در انتظار اتصال</div>
           </div>
           <!-- KPI 2 -->
           <div class="glass-panel kpi-card">
             <div class="kpi-header"><span>ترافیک لحظه‌ای</span><span>⚡</span></div>
-            <div class="kpi-value font-mono" id="kpi-traffic">42.8 <span style="font-size:0.8rem; font-weight:500;">Mbps</span></div>
-            <div class="kpi-sub">↓ 34.2 | ↑ 8.6 Mbps</div>
+            <div class="kpi-value font-mono" id="kpi-traffic">--- <span style="font-size:0.8rem; font-weight:500;">Mbps</span></div>
+            <div class="kpi-sub" id="kpi-traffic-sub">---</div>
           </div>
           <!-- KPI 3 -->
           <div class="glass-panel kpi-card">
             <div class="kpi-header"><span>Latency میانگین</span><span>⏱️</span></div>
-            <div class="kpi-value font-mono" id="kpi-latency" style="color:var(--success);">24 <span style="font-size:0.8rem; font-weight:500;">ms</span></div>
-            <div class="kpi-sub">تأخیر بهینه</div>
+            <div class="kpi-value font-mono" id="kpi-latency" style="color:var(--success);">--- <span style="font-size:0.8rem; font-weight:500;">ms</span></div>
+            <div class="kpi-sub" id="kpi-latency-sub">---</div>
           </div>
           <!-- KPI 4 -->
           <div class="glass-panel kpi-card">
             <div class="kpi-header"><span>وضعیت Mihomo</span><span>🚀</span></div>
-            <div class="kpi-value" style="font-size:1.15rem; color:var(--success);">Active</div>
-            <div class="kpi-sub font-mono">Port :9090 | USB</div>
+            <div class="kpi-value" id="kpi-mihomo-status" style="font-size:1.15rem; color:var(--text-muted);">---</div>
+            <div class="kpi-sub font-mono" id="kpi-mihomo-sub">---</div>
           </div>
           <!-- KPI 5 -->
           <div class="glass-panel kpi-card">
             <div class="kpi-header"><span>وضعیت L2TP / VPN</span><span>🔒</span></div>
-            <div class="kpi-value" style="font-size:1.15rem; color:#38bdf8;">Standby</div>
-            <div class="kpi-sub">Policy Routing</div>
+            <div class="kpi-value" id="kpi-vpn-status" style="font-size:1.15rem; color:var(--text-muted);">---</div>
+            <div class="kpi-sub" id="kpi-vpn-sub">---</div>
           </div>
           <!-- KPI 6 -->
           <div class="glass-panel kpi-card">
             <div class="kpi-header"><span>سلامت کلی</span><span>🎯</span></div>
-            <div class="kpi-value font-mono" style="color:var(--success);">98%</div>
-            <div class="kpi-sub">Zero-Lockout Safe</div>
+            <div class="kpi-value font-mono" id="kpi-health-score" style="color:var(--text-muted);">---</div>
+            <div class="kpi-sub" id="kpi-health-sub">در انتظار روتر</div>
           </div>
         </div>
 
@@ -247,10 +259,10 @@
                 <span class="status-dot"></span>
               </div>
               <h4 style="margin-bottom:6px; color:#fff;">Active Route فعلی</h4>
-              <p class="font-mono" style="font-size:0.85rem; color:#38bdf8;">0.0.0.0/0 -> 192.168.1.1</p>
-              <p style="font-size:0.82rem; color:var(--text-muted); margin-top:4px;">ترافیک از خط پیش‌فرض با اولویت Distance 1 در جریان است.</p>
+              <p class="font-mono" id="card-active-route" style="font-size:0.85rem; color:#38bdf8;">---</p>
+              <p style="font-size:0.82rem; color:var(--text-muted); margin-top:4px;" id="card-active-route-sub">در انتظار دریافت جدول مسیریابی از روتر...</p>
             </div>
-            <div style="margin-top:12px; font-size:0.78rem; color:var(--success);">✓ مانیتورینگ پینگ فعال</div>
+            <div style="margin-top:12px; font-size:0.78rem; color:var(--text-muted);" id="card-active-route-status">وضعیت روت‌ها</div>
           </div>
 
           <!-- Card 2: Last Applied Plan -->
@@ -261,8 +273,8 @@
                 <span style="font-size:0.75rem; color:var(--text-muted);">تاریخچه</span>
               </div>
               <h4 style="margin-bottom:6px; color:#fff;">آخرین Plan اجرا شده</h4>
-              <p id="card-last-plan-title" style="font-size:0.85rem; color:#fff;">Generic Multi-WAN Smart Failover</p>
-              <p style="font-size:0.82rem; color:var(--text-muted); margin-top:4px;">۲ مرحله با بک‌آپ خودکار و بدون قطعی اعمال شد.</p>
+              <p id="card-last-plan-title" style="font-size:0.85rem; color:#fff;">هنوز پلنی اعمال نشده است</p>
+              <p style="font-size:0.82rem; color:var(--text-muted); margin-top:4px;" id="card-last-plan-sub">پلن‌های مصوب پس از اجرا در اینجا ثبت می‌شوند.</p>
             </div>
             <button class="btn btn-outline" onclick="switchTab('plan')" style="margin-top:12px; font-size:0.78rem; padding:6px 10px;">
               مشاهده جزئیات Plan →
@@ -382,18 +394,18 @@
         <div class="kpi-grid">
           <div class="glass-panel kpi-card">
             <div class="kpi-header"><span>سازگاری سخت‌افزار</span><span>✅</span></div>
-            <div class="kpi-value" style="font-size:1.3rem; color:var(--success);">سازگار</div>
-            <div class="kpi-sub">ARM64 + رم ۱ گیگابایت</div>
+            <div class="kpi-value" id="mihomo-hw-compat" style="font-size:1.3rem; color:var(--text-muted);">---</div>
+            <div class="kpi-sub" id="mihomo-hw-sub">در انتظار اتصال روتر</div>
           </div>
           <div class="glass-panel kpi-card">
             <div class="kpi-header"><span>ذخیره‌سازی کانتینر</span><span>💽</span></div>
-            <div class="kpi-value" style="font-size:1.3rem;">USB (14 GB)</div>
-            <div class="kpi-sub">محافظت از حافظه داخلی</div>
+            <div class="kpi-value" id="mihomo-storage-val" style="font-size:1.3rem; color:var(--text-muted);">---</div>
+            <div class="kpi-sub" id="mihomo-storage-sub">پایش دیسک/USB روتر</div>
           </div>
           <div class="glass-panel kpi-card">
             <div class="kpi-header"><span>پورت REST API</span><span>🔌</span></div>
-            <div class="kpi-value font-mono" style="font-size:1.3rem;">:9090</div>
-            <div class="kpi-sub">MetaCubeX Ready</div>
+            <div class="kpi-value font-mono" id="mihomo-port-val" style="font-size:1.3rem;">---</div>
+            <div class="kpi-sub" id="mihomo-port-sub">MetaCubeX Ready</div>
           </div>
         </div>
 
@@ -419,8 +431,8 @@
           <div>
             <div class="glass-panel stat-card" style="margin-bottom:16px;">
               <div class="stat-header"><span>امتیاز سلامت کانفیگ روتر</span><span>🎯</span></div>
-              <div id="ai-health-score" class="stat-value" style="color:var(--primary);">98 / 100</div>
-              <div id="ai-summary-text" class="stat-sub">روتر کاملاً سالم و آماده دریافت پلن‌های جدید</div>
+              <div id="ai-health-score" class="stat-value" style="color:var(--text-muted);">---</div>
+              <div id="ai-summary-text" class="stat-sub">برای تحلیل هوشمند وضعیت و سلامت، ابتدا روتر را متصل نمایید.</div>
             </div>
 
             <h3 style="margin-bottom:12px;">نمونه درخواست‌های آماده برای تست فوری:</h3>
@@ -604,11 +616,10 @@
           <div>
             <label style="font-size:0.82rem; color:var(--text-muted);">نوع سیستم‌عامل (OS Adapter):</label>
             <select id="new-router-os" style="width:100%; margin-top:4px; padding:10px; background:#1e293b; border:1px solid var(--glass-border); border-radius:8px; color:#fff;">
-              <option value="mikrotik_ros7" selected>MikroTik RouterOS 7 (پیشنهادی)</option>
-              <option value="mikrotik_ros6">MikroTik RouterOS 6</option>
+              <option value="mikrotik_ros7" selected>MikroTik RouterOS 7 (REST API)</option>
+              <option value="mikrotik_ros6">MikroTik RouterOS 6 (SSH/API)</option>
               <option value="openwrt">OpenWrt Linux</option>
               <option value="linux">Linux Router / VyOS</option>
-              <option value="simulator">شبیه‌ساز تستی (Simulator)</option>
             </select>
           </div>
           <div>
@@ -620,12 +631,12 @@
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
           <div>
             <label style="font-size:0.82rem; color:var(--text-muted);">پورت اتصال:</label>
-            <input id="new-router-port" type="number" placeholder="443 یا 8728" value="443" style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+            <input id="new-router-port" type="number" placeholder="443 یا 80" value="443" style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
           </div>
           <div>
-            <label style="font-size:0.82rem; color:var(--text-muted);">نوع احراز هویت:</label>
+            <label style="font-size:0.82rem; color:var(--text-muted);">پروتکل ارتباطی:</label>
             <select id="new-router-authtype" style="width:100%; margin-top:4px; padding:10px; background:#1e293b; border:1px solid var(--glass-border); border-radius:8px; color:#fff;">
-              <option value="password" selected>نام کاربری و رمز عبور</option>
+              <option value="password" selected>نام کاربری و رمز عبور (Basic Auth)</option>
               <option value="ssh_key">کلید امنیتی SSH</option>
             </select>
           </div>
@@ -634,17 +645,19 @@
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
           <div>
             <label style="font-size:0.82rem; color:var(--text-muted);">نام کاربری (Username):</label>
-            <input id="new-router-user" type="text" placeholder="مثلاً: admin" required style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+            <input id="new-router-user" type="text" placeholder="admin" value="admin" required style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
           </div>
           <div>
-            <label style="font-size:0.82rem; color:var(--text-muted);">کلمه عبور یا کلید:</label>
+            <label style="font-size:0.82rem; color:var(--text-muted);">کلمه عبور (Password):</label>
             <input id="new-router-pass" type="password" placeholder="••••••••" style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
           </div>
         </div>
 
+        <div id="add-router-msg" style="display:none; padding:10px; border-radius:8px; font-size:0.82rem;"></div>
+
         <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:12px;">
           <button type="button" class="btn btn-outline" onclick="closeAddRouterModal()">انصراف</button>
-          <button type="submit" class="btn btn-primary">💾 ذخیره و اتصال به روتر</button>
+          <button type="submit" id="btn-submit-add-router" class="btn btn-primary">🔌 آزمون و اتصال به روتر</button>
         </div>
       </form>
     </div>
