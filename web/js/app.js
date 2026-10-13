@@ -111,13 +111,23 @@ function startHealthPolling() {
   }, 3000);
 }
 
-function updateConnectionBadge(connected) {
+function updateConnectionBadge(connected, simulatorMode = true) {
   const badge = document.getElementById('router-status-badge');
+  const footerStatus = document.getElementById('sidebar-system-status');
   if (!badge) return;
-  if (connected) {
-    badge.innerHTML = `<span class="status-dot"></span><span>RB5009 (ROS 7.15)</span>`;
+
+  if (simulatorMode) {
+    badge.style.color = 'var(--warning)';
+    badge.innerHTML = `<span class="status-dot" style="background:#f59e0b; box-shadow:0 0 8px rgba(245,158,11,0.5);"></span><span>شبیه‌ساز امن (آفلاین)</span>`;
+    if (footerStatus) footerStatus.innerText = 'حالت شبیه‌ساز آفلاین (امن)';
+  } else if (connected) {
+    badge.style.color = 'var(--success)';
+    badge.innerHTML = `<span class="status-dot"></span><span>روتر متصل (آنلاین)</span>`;
+    if (footerStatus) footerStatus.innerText = 'روتر متصل و پایدار';
   } else {
-    badge.innerHTML = `<span class="status-dot" style="background:#ef4444;box-shadow:0 0 10px #ef4444;"></span><span>قطع ارتباط</span>`;
+    badge.style.color = 'var(--danger)';
+    badge.innerHTML = `<span class="status-dot" style="background:#ef4444; box-shadow:0 0 8px #ef4444;"></span><span>قطع ارتباط</span>`;
+    if (footerStatus) footerStatus.innerText = 'عدم اتصال به روتر';
   }
 }
 
@@ -354,11 +364,22 @@ async function sendAIMessage() {
   input.value = '';
   chatContainer.scrollTop = chatContainer.scrollHeight;
 
+  const provider = document.getElementById('cfg-ai-provider')?.value || 'rule_engine';
+  const aiUrl = document.getElementById('cfg-ai-url')?.value || '';
+  const aiKey = document.getElementById('cfg-ai-key')?.value || '';
+  const aiModel = document.getElementById('cfg-ai-model')?.value || '';
+
   try {
     const res = await fetch('/api/ai/ask', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({
+        prompt,
+        provider,
+        base_url: aiUrl,
+        api_key: aiKey,
+        model: aiModel
+      }),
     });
     const data = await res.json();
     chatContainer.innerHTML += `
@@ -419,4 +440,25 @@ async function loadAuditLogs() {
   } catch (err) {
     console.error('Failed to load logs:', err);
   }
+}
+
+// Save Settings function
+function saveSettings() {
+  const settings = {
+    host: document.getElementById('cfg-host')?.value || '',
+    user: document.getElementById('cfg-user')?.value || '',
+    mode: document.getElementById('cfg-mode')?.value || 'simulator',
+    socks: document.getElementById('cfg-socks')?.value || '127.0.0.1:7890',
+    ai_provider: document.getElementById('cfg-ai-provider')?.value || 'rule_engine',
+    ai_url: document.getElementById('cfg-ai-url')?.value || '',
+    ai_key: document.getElementById('cfg-ai-key')?.value || '',
+    ai_model: document.getElementById('cfg-ai-model')?.value || ''
+  };
+
+  localStorage.setItem('rp_settings', JSON.stringify(settings));
+
+  const isSim = (settings.mode === 'simulator');
+  updateConnectionBadge(!isSim, isSim);
+
+  alert('💾 تنظیمات با موفقیت ذخیره شد. حالت فعال: ' + (isSim ? 'شبیه‌ساز امن (آفلاین)' : 'اتصال واقعی به روتر'));
 }

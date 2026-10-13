@@ -96,9 +96,9 @@
       </div>
 
       <div class="topbar-actions">
-        <div id="router-status-badge" class="status-badge">
-          <span class="status-dot"></span>
-          <span>RB5009 (ROS 7.15)</span>
+        <div id="router-status-badge" class="status-badge" style="color:var(--warning);">
+          <span class="status-dot" style="background:#f59e0b; box-shadow:0 0 8px rgba(245,158,11,0.5);"></span>
+          <span id="topbar-router-label">شبیه‌ساز امن (Simulator Mode)</span>
         </div>
         <button id="btn-theme-toggle" class="btn btn-outline" title="تغییر حالت تم">
           🌓
@@ -477,18 +477,57 @@
 
         <div class="glass-panel" style="padding:24px; max-width:680px;">
           <h3 style="margin-bottom:16px;">مشخصات اتصال به روتر:</h3>
+          <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:16px;">
+            ⚠️ هیچ مشخصاتی به صورت پیش‌فرض ذخیره نشده است. اطلاعات اتصال به صورت محلی در Windows Credential Manager نگهداری می‌شود.
+          </p>
           <div style="display:flex; flex-direction:column; gap:14px; margin-bottom:24px;">
             <div>
               <label style="font-size:0.85rem; color:var(--text-muted);">آدرس IP یا دامنه روتر:</label>
-              <input id="cfg-host" type="text" value="172.16.20.1" style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+              <input id="cfg-host" type="text" placeholder="مثال: 192.168.88.1" style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
             </div>
             <div>
               <label style="font-size:0.85rem; color:var(--text-muted);">نام کاربری (Username):</label>
-              <input id="cfg-user" type="text" value="admin" style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+              <input id="cfg-user" type="text" placeholder="مثال: admin" style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
             </div>
             <div>
-              <label style="font-size:0.85rem; color:var(--text-muted);">رمز عبور (Windows Credential Manager):</label>
-              <input id="cfg-pass" type="password" placeholder="••••••••" style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+              <label style="font-size:0.85rem; color:var(--text-muted);">رمز عبور (ذخیره امن در ویندوز):</label>
+              <input id="cfg-pass" type="password" placeholder="رمز عبور روتر..." style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+            </div>
+            <div>
+              <label style="font-size:0.85rem; color:var(--text-muted);">حالت اتصال:</label>
+              <select id="cfg-mode" style="width:100%; margin-top:4px; padding:10px; background:#1e293b; border:1px solid var(--glass-border); border-radius:8px; color:#fff;">
+                <option value="simulator" selected>حالت شبیه‌ساز امن (Simulator Mode - بدون اتصال فیزیکی به روتر)</option>
+                <option value="real">اتصال واقعی به روتر میکروتیک (RouterOS 7 REST API)</option>
+              </select>
+            </div>
+          </div>
+
+          <h3 style="margin-bottom:16px;">🤖 تنظیمات هوش مصنوعی (AI Provider):</h3>
+          <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:16px;">
+            انتخاب کنید مایلید سوالات و درخواست‌های ساخت کانفیگ به کدام مدل هوش مصنوعی ارسال شود:
+          </p>
+          <div style="display:flex; flex-direction:column; gap:14px; margin-bottom:24px;">
+            <div>
+              <label style="font-size:0.85rem; color:var(--text-muted);">سرویس‌دهنده هوش مصنوعی:</label>
+              <select id="cfg-ai-provider" style="width:100%; margin-top:4px; padding:10px; background:#1e293b; border:1px solid var(--glass-border); border-radius:8px; color:#fff;">
+                <option value="rule_engine" selected>موتور قوانین داخلی (کاملاً آفلاین، سریع، بدون نیاز به اینترنت و کلید)</option>
+                <option value="ollama">Ollama / LM Studio (مدل محلی رایگان و نامحدود روی سیستم شما - مثلاً Qwen 2.5)</option>
+                <option value="gemini">Google Gemini API (رایگان با کلید رایگان گوگل)</option>
+                <option value="groq">Groq Cloud (فوق‌العاده سریع - Llama 3.3)</option>
+                <option value="openai">OpenAI / OpenRouter (با کلید اختصاصی)</option>
+              </select>
+            </div>
+            <div>
+              <label style="font-size:0.85rem; color:var(--text-muted);">آدرس سرور API (Base URL):</label>
+              <input id="cfg-ai-url" type="text" placeholder="http://localhost:11434/v1" value="http://localhost:11434/v1" style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+            </div>
+            <div>
+              <label style="font-size:0.85rem; color:var(--text-muted);">کلید API (API Key - برای مدلهای آنلاین):</label>
+              <input id="cfg-ai-key" type="password" placeholder="برای Ollama خالی بگذارید..." style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+            </div>
+            <div>
+              <label style="font-size:0.85rem; color:var(--text-muted);">نام مدل (Model):</label>
+              <input id="cfg-ai-model" type="text" placeholder="مثلاً: qwen2.5:7b یا gemini-1.5-flash" value="qwen2.5:7b" style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
             </div>
           </div>
 
@@ -500,7 +539,7 @@
             </div>
           </div>
 
-          <button class="btn btn-primary" onclick="alert('تنظیمات با موفقیت ذخیره شد.')">ذخیره و اعتبارسنجی</button>
+          <button class="btn btn-primary" onclick="saveSettings()">💾 ذخیره تنظیمات</button>
         </div>
       </section>
 

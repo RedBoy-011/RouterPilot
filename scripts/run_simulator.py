@@ -403,9 +403,53 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
 
         elif self.path == "/api/ai/ask":
             prompt = req_data.get("prompt", "")
-            self.send_json(200, {
-                "answer": f"بر اساس بررسی پیکربندی روتر مرجع شما و سؤال «{prompt}»:\n\nبرای این منظور می‌توانید از قابلیت Policy Routing در تب پروفایل‌ها استفاده کنید. ترافیک‌های حساس به صورت مستقیم از لینک مبین‌نت عبور داده شده و ترافیک بین‌الملل به سمت پروکسی هدایت خواهد شد. برای اجرای این تغییرات کافیست Plan مربوطه را تولید و پس از بررسی دستورات تأیید نمایید."
-            })
+            provider = req_data.get("provider", "rule_engine")
+            base_url = req_data.get("base_url", "")
+            api_key = req_data.get("api_key", "")
+            model = req_data.get("model", "")
+
+            # If user configured external Ollama / LLM endpoint, attempt connection
+            llm_answered = False
+            llm_text = ""
+            if provider in ["ollama", "openai", "groq"] and base_url:
+                try:
+                    import urllib.request
+                    url = f"{base_url.rstrip('/')}/chat/completions"
+                    headers = {"Content-Type": "application/json"}
+                    if api_key:
+                        headers["Authorization"] = f"Bearer {api_key}"
+                    payload = json.dumps({
+                        "model": model or "qwen2.5:7b",
+                        "messages": [
+                            {"role": "system", "content": "You are RouterPilot AI, an expert MikroTik RouterOS network engineer. Answer concisely and professionally in Persian."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        "temperature": 0.4
+                    }).encode("utf-8")
+                    req = urllib.request.Request(url, data=payload, headers=headers)
+                    with urllib.request.urlopen(req, timeout=5) as resp:
+                        res_json = json.loads(resp.read().decode("utf-8"))
+                        llm_text = res_json["choices"][0]["message"]["content"]
+                        llm_answered = True
+                except Exception as ex:
+                    llm_answered = False
+
+            if llm_answered:
+                self.send_json(200, {"answer": llm_text})
+            else:
+                lower = prompt.lower()
+                if "wireguard" in lower or "وایرگارد" in lower:
+                    ans = f"درخواست شما برای «{prompt}» بررسی شد.\n\nیک Plan کامل شامل ایجاد اینترفیس wg0 روی پورت 13231، تنظیم رنج IP 10.200.0.1/24 و رول فایروال جهت مجازسازی هندشیک تولید شد. روی دکمه «انتقال به Plan Builder» کلیک کنید تا قبل از اجرا، پیش‌نمایش دستورات را مشاهده فرمایید."
+                elif "محدود" in lower or "speed" in lower or "queue" in lower or "سرعت" in lower:
+                    ans = f"درخواست شما برای «{prompt}» بررسی شد.\n\nیک Plan جهت ایجاد Simple Queue برای مدیریت ترافیک شبکه محلی (سقف دانلود و آپلود) تولید شد. هیچ تغییری بدون تأیید نهایی شما اعمال نخواهد شد."
+                elif "port" in lower or "forward" in lower or "پورت" in lower or "دوربین" in lower:
+                    ans = f"درخواست انتقال پورت (Port Forwarding / DST-NAT) برای «{prompt}» آماده شد.\n\nرول فایروال برای هدایت درخواست‌های خارجی به سمت سرور یا دوربین محلی تنظیم گردیده است."
+                elif "سلام" in lower or "درود" in lower:
+                    ans = "سلام و درود! من دستیار هوشمند روتر شما هستم. می‌توانید هر سؤالی درباره پیکربندی میکروتیک، Failover، کانتینر Mihomo، وایرگارد و مدیریت روت‌ها دارید بپرسید تا راهنمایی کنم و پلن مرحله‌ای بسازم."
+                else:
+                    ans = f"درخواست شما («{prompt}») توسط مشاور هوشمند بررسی شد.\n\nبر اساس تحلیل وضعیت روتر و اصول ایمنی Zero-Lockout، تغییرات پیشنهادی در قالب یک Plan مرحله‌ای و قابل‌بررسی آماده شده است. می‌توانید دکمه زیر را برای بررسی دستورات بزنید."
+
+                self.send_json(200, {"answer": ans})
         else:
             self.send_error(404)
 
