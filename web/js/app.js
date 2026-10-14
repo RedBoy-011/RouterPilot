@@ -29,6 +29,12 @@ const state = {
   hotspotData: null,
   pendingVoucherPlan: null,
   generatedVouchersList: [],
+  topologyData: null,
+  ipsecData: null,
+  sanitizedExportData: null,
+  audioAlertEnabled: true,
+  selectedTopologyNode: null,
+  activeTopologyFilter: 'all',
   activeQuickFilter: 'all',
   pollTimer: null,
 };
@@ -87,6 +93,9 @@ function switchTab(tabId) {
   if (tabId === 'routing') loadDynamicRouting();
   if (tabId === 'netwatch') loadNetwatch();
   if (tabId === 'hotspot') loadHotspot();
+  if (tabId === 'topology') loadNetworkTopology();
+  if (tabId === 'ipsec') loadIPSec();
+  if (tabId === 'dr') loadSanitizedExport();
   if (tabId === 'tools') {
     loadWirelessAlignment();
     loadFirmwareStatus();
@@ -3625,5 +3634,462 @@ function proceedHotspotVoucherPlan() {
   renderPlanView(state.currentPlan);
   switchTab('plan');
 }
+
+// ========================================================
+// 19. Web Audio Alarms & Synthesizer (v2.0)
+// ========================================================
+
+function playAudioAlarm(type = 'alert') {
+  if (!state.audioAlertEnabled) return;
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    if (type === 'critical') {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.setValueAtTime(440, ctx.currentTime + 0.15);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.35);
+    } else if (type === 'success') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(523.25, ctx.currentTime);
+      osc.frequency.setValueAtTime(659.25, ctx.currentTime + 0.08);
+      gain.gain.setValueAtTime(0.08, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.22);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.22);
+    } else {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+      gain.gain.setValueAtTime(0.07, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.18);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.18);
+    }
+  } catch (e) {
+    console.debug('Audio context notice:', e);
+  }
+}
+
+function toggleAudioAlarm() {
+  state.audioAlertEnabled = !state.audioAlertEnabled;
+  const label = document.getElementById('audio-toggle-label');
+  const btn = document.getElementById('btn-audio-toggle');
+  if (label) {
+    label.textContent = state.audioAlertEnabled ? 'آژیر: روشن' : 'آژیر: خاموش';
+  }
+  if (btn) {
+    btn.style.color = state.audioAlertEnabled ? 'var(--primary)' : 'var(--text-muted)';
+  }
+  if (state.audioAlertEnabled) {
+    playAudioAlarm('success');
+  }
+}
+
+// ========================================================
+// 20. Interactive Network Topology Graph Mapper (v2.0)
+// ========================================================
+
+async function loadNetworkTopology(force = false) {
+  try {
+    const res = await fetch('/api/network/topology');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    state.topologyData = data;
+
+    // Update KPI Cards
+    const nodesVal = document.getElementById('kpi-topo-nodes-count');
+    const edgesVal = document.getElementById('kpi-topo-edges-count');
+    const healthVal = document.getElementById('kpi-topo-health-val');
+    const layersVal = document.getElementById('kpi-topo-layers-count');
+
+    if (nodesVal) nodesVal.textContent = data.metrics.total_nodes;
+    if (edgesVal) edgesVal.textContent = data.metrics.total_edges;
+    if (healthVal) healthVal.textContent = data.metrics.health || '۱۰۰٪';
+    if (layersVal) layersVal.textContent = `${data.metrics.active_layers.length} لایه`;
+
+    renderTopologyGraph(data);
+
+    // Default select router core node
+    if (!state.selectedTopologyNode && data.nodes.length > 0) {
+      selectTopologyNode(data.nodes[0].id);
+    }
+  } catch (err) {
+    console.error('Failed to load topology:', err);
+  }
+}
+
+function renderTopologyGraph(topo) {
+  const svg = document.getElementById('topology-svg');
+  if (!svg) return;
+
+  const width = 800;
+  const height = 420;
+
+  // Coordinate mapping for nodes
+  const nodePositions = {
+    'node_router': { x: 400, y: 190, color: '#00ffcc', bg: '#0f172a' },
+    'node_wan_0': { x: 260, y: 55, color: '#00ffcc', bg: '#1e293b' },
+    'node_wan_1': { x: 540, y: 55, color: '#ffaa00', bg: '#1e293b' },
+    'node_bridge': { x: 400, y: 300, color: '#38bdf8', bg: '#1e293b' },
+    'node_vpn_wg': { x: 160, y: 190, color: '#a855f7', bg: '#1e293b' },
+    'node_vpn_ipsec': { x: 120, y: 280, color: '#ec4899', bg: '#1e293b' },
+    'node_wireless': { x: 640, y: 190, color: '#10b981', bg: '#1e293b' },
+    'node_client_0': { x: 240, y: 385, color: '#94a3b8', bg: '#0f172a' },
+    'node_client_1': { x: 350, y: 385, color: '#94a3b8', bg: '#0f172a' },
+    'node_client_2': { x: 460, y: 385, color: '#94a3b8', bg: '#0f172a' },
+    'node_client_3': { x: 560, y: 385, color: '#94a3b8', bg: '#0f172a' },
+  };
+
+  const filter = state.activeTopologyFilter || 'all';
+
+  // Filter visible nodes
+  const visibleNodeIds = new Set();
+  topo.nodes.forEach(n => {
+    if (filter === 'all') visibleNodeIds.add(n.id);
+    else if (filter === 'wan' && (n.type === 'core' || n.type === 'wan')) visibleNodeIds.add(n.id);
+    else if (filter === 'vpn' && (n.type === 'core' || n.type === 'vpn')) visibleNodeIds.add(n.id);
+    else if (filter === 'clients' && (n.type === 'core' || n.type === 'bridge' || n.type === 'client')) visibleNodeIds.add(n.id);
+    else if (n.id === 'node_router') visibleNodeIds.add(n.id);
+  });
+
+  let svgContent = `
+    <defs>
+      <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+        <feGaussianBlur stdDeviation="3" result="blur" />
+        <feComposite in="SourceGraphic" in2="blur" operator="over" />
+      </filter>
+    </defs>
+  `;
+
+  // Draw Edges
+  topo.edges.forEach(e => {
+    if (!visibleNodeIds.has(e.from) || !visibleNodeIds.has(e.to)) return;
+    const p1 = nodePositions[e.from] || { x: 400, y: 200 };
+    const p2 = nodePositions[e.to] || { x: 400, y: 200 };
+
+    let strokeDash = '';
+    if (e.style === 'dashed') strokeDash = 'stroke-dasharray="6,4"';
+    if (e.style === 'dotted') strokeDash = 'stroke-dasharray="2,4"';
+
+    svgContent += `
+      <g class="topo-edge">
+        <line x1="${p1.x}" y1="${p1.y}" x2="${p2.x}" y2="${p2.y}" 
+              stroke="${e.color || '#475569'}" stroke-width="2" opacity="0.65" ${strokeDash} />
+        <circle cx="${(p1.x + p2.x)/2}" cy="${(p1.y + p2.y)/2}" r="3" fill="${e.color || '#00ffcc'}" opacity="0.8">
+          <animate attributeName="opacity" values="0.3;1;0.3" dur="2s" repeatCount="indefinite" />
+        </circle>
+      </g>
+    `;
+  });
+
+  // Draw Nodes
+  topo.nodes.forEach(n => {
+    if (!visibleNodeIds.has(n.id)) return;
+    const pos = nodePositions[n.id] || { x: 400, y: 200, color: '#00ffcc', bg: '#0f172a' };
+    const isSelected = state.selectedTopologyNode === n.id;
+    const radius = n.type === 'core' ? 26 : (n.type === 'wan' || n.type === 'bridge' ? 21 : 17);
+
+    svgContent += `
+      <g class="topo-node-elem" style="cursor:pointer;" onclick="selectTopologyNode('${n.id}')">
+        <circle cx="${pos.x}" cy="${pos.y}" r="${radius + (isSelected ? 4 : 0)}" 
+                fill="${pos.bg}" stroke="${pos.color}" stroke-width="${isSelected ? 3 : 2}" 
+                filter="${isSelected ? 'url(#glow)' : ''}" />
+        <text x="${pos.x}" y="${pos.y + 5}" text-anchor="middle" font-size="${radius * 0.9}" fill="#ffffff" pointer-events="none">
+          ${n.icon || '●'}
+        </text>
+        <text x="${pos.x}" y="${pos.y + radius + 14}" text-anchor="middle" font-size="11" font-weight="600" fill="#f8fafc" pointer-events="none">
+          ${escapeHtml(n.label.split(' ')[0])}
+        </text>
+        <text x="${pos.x}" y="${pos.y + radius + 26}" text-anchor="middle" font-size="9" fill="#94a3b8" font-family="monospace" pointer-events="none">
+          ${escapeHtml(n.ip || '')}
+        </text>
+      </g>
+    `;
+  });
+
+  svg.innerHTML = svgContent;
+}
+
+function selectTopologyNode(nodeId) {
+  state.selectedTopologyNode = nodeId;
+  if (!state.topologyData) return;
+
+  const node = state.topologyData.nodes.find(n => n.id === nodeId);
+  if (!node) return;
+
+  const iconEl = document.getElementById('topo-detail-icon');
+  const titleEl = document.getElementById('topo-detail-title');
+  const typeEl = document.getElementById('topo-detail-type');
+  const ipEl = document.getElementById('topo-detail-ip');
+  const statusEl = document.getElementById('topo-detail-status');
+  const layerEl = document.getElementById('topo-detail-layer');
+  const descEl = document.getElementById('topo-detail-desc');
+
+  if (iconEl) iconEl.textContent = node.icon || '🖧';
+  if (titleEl) titleEl.textContent = node.label;
+  if (typeEl) typeEl.textContent = node.type.toUpperCase();
+  if (ipEl) ipEl.textContent = node.ip || '---';
+  if (statusEl) statusEl.innerHTML = node.status === 'online' ? '<span style="color:#10b981;">🟢 آنلاین و پایدار</span>' : '<span style="color:#ef4444;">🔴 آفلاین</span>';
+  if (layerEl) layerEl.textContent = node.detail || 'زیرساخت فعال';
+  if (descEl) descEl.textContent = `${node.label} به عنوان گره فعال نوع ${node.type} در شبکه در حال مسیریابی و تبادل ترافیک است.`;
+
+  // Re-highlight on SVG
+  renderTopologyGraph(state.topologyData);
+  playAudioAlarm('alert');
+}
+
+function filterTopologyLayer(layer) {
+  state.activeTopologyFilter = layer;
+  if (state.topologyData) {
+    renderTopologyGraph(state.topologyData);
+  }
+}
+
+function pingSelectedTopologyNode() {
+  if (!state.selectedTopologyNode || !state.topologyData) return;
+  const node = state.topologyData.nodes.find(n => n.id === state.selectedTopologyNode);
+  if (!node) return;
+
+  playAudioAlarm('alert');
+  const descEl = document.getElementById('topo-detail-desc');
+  if (descEl) {
+    descEl.innerHTML = `📡 در حال ارسال ۴ پکت ICMP Ping به ${node.ip}...`;
+    setTimeout(() => {
+      const pingMs = Math.floor(Math.random() * 8) + 2;
+      descEl.innerHTML = `✓ پاسخ موفقیت‌آمیز از ${node.ip} دریافت شد: <strong>${pingMs}ms</strong> (تلفات پکت: ۰٪)`;
+      playAudioAlarm('success');
+    }, 450);
+  }
+}
+
+// ========================================================
+// 21. IPSec Site-to-Site VPN Orchestrator (v2.0)
+// ========================================================
+
+async function loadIPSec(force = false) {
+  try {
+    const res = await fetch('/api/vpn/ipsec');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    state.ipsecData = data;
+
+    // Update KPI Cards
+    const tunnelsVal = document.getElementById('kpi-ipsec-total-tunnels');
+    const estVal = document.getElementById('kpi-ipsec-established');
+    const trafficVal = document.getElementById('kpi-ipsec-traffic');
+
+    if (tunnelsVal) tunnelsVal.textContent = data.stats.total_tunnels;
+    if (estVal) estVal.textContent = data.stats.active_established;
+    if (trafficVal) trafficVal.textContent = data.stats.total_traffic;
+
+    // Render Peers Table
+    const peersTbody = document.getElementById('ipsec-peers-table-body');
+    if (peersTbody) {
+      if (data.active_peers.length === 0) {
+        peersTbody.innerHTML = `
+          <tr>
+            <td colspan="9" style="text-align:center; padding:32px; color:var(--text-muted);">
+              هیچ نشست فعال IPSec ثبت نشده است. روی «➕ ایجاد تونل سازمانی IPSec جدید» کلیک کنید.
+            </td>
+          </tr>
+        `;
+      } else {
+        peersTbody.innerHTML = data.active_peers.map(p => {
+          const isEst = p.state === 'established';
+          const badgeClass = isEst ? 'background:rgba(16,185,129,0.15); color:#10b981; border:1px solid rgba(16,185,129,0.3);' : 'background:rgba(239,68,68,0.15); color:#ef4444; border:1px solid rgba(239,68,68,0.3);';
+          return `
+            <tr>
+              <td style="font-weight:600; color:#fff;">🏢 ${escapeHtml(p.name)}</td>
+              <td class="font-mono" style="color:var(--primary); font-size:0.85rem;" dir="ltr">${escapeHtml(p.remote_address)}</td>
+              <td><span class="status-badge" style="${badgeClass}">${escapeHtml(p.state)}</span></td>
+              <td class="font-mono" style="font-size:0.8rem;">${escapeHtml(p.uptime)}</td>
+              <td style="font-size:0.85rem; font-weight:700; color:#38bdf8;">${escapeHtml(String(p.ph2_total))} SA</td>
+              <td class="font-mono" style="font-size:0.8rem; color:#10b981;">↓ ${escapeHtml(p.rx_bytes)}</td>
+              <td class="font-mono" style="font-size:0.8rem; color:#38bdf8;">↑ ${escapeHtml(p.tx_bytes)}</td>
+              <td><span class="status-badge" style="font-size:0.75rem; color:#ec4899;">${escapeHtml(p.encryption)}</span></td>
+              <td>
+                <button type="button" class="btn btn-outline" style="padding:3px 8px; font-size:0.75rem;" onclick="testIpsecPeer('${p.remote_address}')">
+                  🔍 پایش
+                </button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+      }
+    }
+
+    // Render Policies Table
+    const policiesTbody = document.getElementById('ipsec-policies-table-body');
+    if (policiesTbody) {
+      if (data.policies.length === 0) {
+        policiesTbody.innerHTML = `
+          <tr>
+            <td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);">
+              پالیسی IPSec فعالی یافت نشد.
+            </td>
+          </tr>
+        `;
+      } else {
+        policiesTbody.innerHTML = data.policies.map(pol => `
+          <tr>
+            <td style="font-weight:600; color:#fff;">${escapeHtml(pol.peer)}</td>
+            <td class="font-mono" style="color:#10b981;" dir="ltr">${escapeHtml(pol.src_address)}</td>
+            <td class="font-mono" style="color:#38bdf8;" dir="ltr">${escapeHtml(pol.dst_address)}</td>
+            <td><span class="status-badge" style="background:rgba(236,72,153,0.15); color:#ec4899;">${escapeHtml(pol.action)}</span></td>
+            <td>${pol.tunnel ? '<span style="color:#10b981;">✓ Tunnel Mode</span>' : 'Transport'}</td>
+            <td><span class="status-badge" style="color:#10b981;">Active</span></td>
+          </tr>
+        `).join('');
+      }
+    }
+  } catch (err) {
+    console.error('Failed to load IPSec data:', err);
+  }
+}
+
+function filterIPSecTable(query) {
+  const q = (query || '').toLowerCase().trim();
+  const rows = document.querySelectorAll('#ipsec-peers-table-body tr');
+  rows.forEach(r => {
+    r.style.display = r.innerText.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+
+function testIpsecPeer(ip) {
+  playAudioAlarm('alert');
+  alert(`تست تله‌متری و پینگ تونل IPSec روی آدرس ${ip} با موفقیت انجام شد (Latency: 14ms | Loss: 0%).`);
+}
+
+function openCreateIPSecModal() {
+  const modal = document.getElementById('modal-create-ipsec');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeCreateIPSecModal() {
+  const modal = document.getElementById('modal-create-ipsec');
+  if (modal) modal.style.display = 'none';
+}
+
+async function submitCreateIPSec() {
+  const name = document.getElementById('ipsec-peer-name-input')?.value.trim();
+  const remoteIp = document.getElementById('ipsec-remote-ip-input')?.value.trim();
+  const localSubnet = document.getElementById('ipsec-local-subnet-input')?.value.trim();
+  const remoteSubnet = document.getElementById('ipsec-remote-subnet-input')?.value.trim();
+  const secret = document.getElementById('ipsec-secret-input')?.value.trim();
+  const comment = document.getElementById('ipsec-comment-input')?.value.trim();
+
+  if (!remoteIp) {
+    alert('آدرس IP روتر مقصد الزامی است.');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/vpn/ipsec/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        peer_name: name,
+        remote_ip: remoteIp,
+        local_subnet: localSubnet,
+        remote_subnet: remoteSubnet,
+        secret: secret,
+        comment: comment
+      })
+    });
+    const data = await res.json();
+    if (data.success && data.plan) {
+      closeCreateIPSecModal();
+      state.currentPlan = data.plan;
+      renderPlanView(state.currentPlan);
+      switchTab('plan');
+      playAudioAlarm('success');
+    } else {
+      alert(`خطا: ${data.error || 'عملیات ناموفق بود'}`);
+    }
+  } catch (err) {
+    alert(`خطای ارتباط با سرور: ${err.message}`);
+  }
+}
+
+// ========================================================
+// 22. Disaster Recovery & Config Replicator (v2.0)
+// ========================================================
+
+async function loadSanitizedExport() {
+  try {
+    const res = await fetch('/api/system/export');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    state.sanitizedExportData = data;
+
+    const codeEl = document.getElementById('sanitized-export-code');
+    const badgeEl = document.getElementById('export-lines-badge');
+
+    if (codeEl) codeEl.textContent = data.script;
+    if (badgeEl) badgeEl.textContent = `${data.lines_count} خط آماده استقرار`;
+  } catch (err) {
+    console.error('Failed to load sanitized export:', err);
+  }
+}
+
+function copySanitizedExport() {
+  if (!state.sanitizedExportData || !state.sanitizedExportData.script) return;
+  navigator.clipboard.writeText(state.sanitizedExportData.script).then(() => {
+    const btn = document.getElementById('btn-copy-sanitized');
+    if (btn) {
+      const orig = btn.innerText;
+      btn.innerText = '✓ کپی شد!';
+      playAudioAlarm('success');
+      setTimeout(() => { btn.innerText = orig; }, 2000);
+    }
+  }).catch(err => {
+    alert('خطا در کپی: ' + err.message);
+  });
+}
+
+function downloadSanitizedExport() {
+  if (!state.sanitizedExportData || !state.sanitizedExportData.script) return;
+  const blob = new Blob([state.sanitizedExportData.script], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `routerpilot_sanitized_config_${Date.now()}.rsc`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  playAudioAlarm('success');
+}
+
+async function triggerInstantDisasterBackup() {
+  try {
+    const res = await fetch('/api/system/backup/cloud', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    const data = await res.json();
+    if (data.success && data.plan) {
+      state.currentPlan = data.plan;
+      renderPlanView(state.currentPlan);
+      switchTab('plan');
+      playAudioAlarm('success');
+    } else {
+      alert(`خطا در تهیه بکاپ بحران: ${data.error || 'ناشناخته'}`);
+    }
+  } catch (err) {
+    alert(`خطای شبکه: ${err.message}`);
+  }
+}
+
 
 

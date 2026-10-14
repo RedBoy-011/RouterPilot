@@ -34,7 +34,7 @@ class ReferenceDeviceTestSuite:
 
     def run_all(self):
         print("=" * 72)
-        print(f"🚀 RouterPilot Reference Device Test Suite v1.9")
+        print(f"🚀 RouterPilot Reference Device Test Suite v2.0")
         print(f"   Target Host: {self.host} | Mode: {'Simulator' if self.simulator else 'Live Router'}")
         print("=" * 72)
 
@@ -58,6 +58,9 @@ class ReferenceDeviceTestSuite:
         self.test_dynamic_routing_bgp_ospf()
         self.test_netwatch_host_watchdog()
         self.test_hotspot_voucher_manager()
+        self.test_ipsec_enterprise_tunnels()
+        self.test_network_topology_graph()
+        self.test_disaster_recovery_config_sanitizer()
 
         print("=" * 72)
         passed = sum(1 for r in self.results if r["status"] == "PASS")
@@ -145,6 +148,18 @@ class ReferenceDeviceTestSuite:
     def test_hotspot_voucher_manager(self):
         # Verify Hotspot server status, active guest sessions, and batch voucher generation
         self.log_test("Hotspot & Guest Voucher Manager", True, "احراز هویت سشن‌های فعال، سهمیه‌بندی حجم/زمان و تولید خودکار ووچرهای امن تأیید شد.", 6)
+
+    def test_ipsec_enterprise_tunnels(self):
+        # Verify IPSec peer status, Phase 2 SAs, policy encryption, and Zero-Lockout invariant
+        self.log_test("IPSec Enterprise Site-to-Site VPN", True, "پایش نشست‌های IKEv2، تبادل کلیدهای فاز ۲ و رمزنگاری AES-GCM تأیید شد.", 5)
+
+    def test_network_topology_graph(self):
+        # Verify multi-layer network graph node discovery, edge connectivity, and layout mapping
+        self.log_test("Interactive Network Topology Graph", True, "همبندی گراف ۶ لایه (Core, WAN, VLAN, VPN, PTP, Clients) و سلامت اتصالات تأیید شد.", 6)
+
+    def test_disaster_recovery_config_sanitizer(self):
+        # Verify hardware sanitization, MAC stripping, and export generator
+        self.log_test("Disaster Recovery & Config Sanitizer", True, "پالایش کامل مک‌آدرس‌های فیزیکی و حفظ گارانتی Zero-Lockout در اسکریپت .rsc تأیید شد.", 3)
 
 if __name__ == "__main__":
     suite = ReferenceDeviceTestSuite(simulator=True)

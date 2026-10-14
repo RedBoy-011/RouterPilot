@@ -1,15 +1,31 @@
-# 🚀 RouterPilot (نسخه ۱.۹)
+# 🚀 RouterPilot (نسخه ۲.۰ - Grand Enterprise Release)
 
 > **سیستم مدیریت متمرکز، تراکنشی و فوق‌هوشمند ناوگان روترهای شبکه (MikroTik ROS 7 / ROS 6، OpenWrt و Linux)**  
-> *با طراحی مدرن Dark Glassmorphism، روتینگ پویا BGP/OSPF، پایشگر خودکار قطعی لینک‌ها (Netwatch Host Watchdog)، مدیریت هات‌اسپات و صدور ووچرهای مهمان (Hotspot & Guest Vouchers)، ماتریس پورت‌ها و مدیریت VLAN سوییچ‌ها (Switch VLAN & Port Matrix)، تونل‌ها و تولید کلاینت WireGuard (VPN & Client Generator)، بازرس ارتقای RouterOS و فریمور سخت‌افزار (Firmware & RouterBOOT Upgrade Inspector)، سپر امنیتی و بازرس فایروال (Security Shield)، مدیریت صف‌ها و کنترل سرعت (Simple Queues Traffic Shaper)، ابزار زنده تراز آنتن رادیو وایرلس (Antenna Alignment Tuner)، بازرس بلادرنگ کلاینت‌ها (Connected Clients Inspector)، مانیتورینگ زنده ترافیک پورت‌ها (Live Torch)، تحلیل سشن‌های فعال (Top Talkers)، سرویس ابری MikroTik Cloud DDNS، زمان‌بندی خودکار پشتیبان‌گیری، کشف همسایه‌ها (MNDP Neighbors)، مذاکره پورت‌ها و کنسول امن CLI*
+> *با طراحی مدرن Dark Glassmorphism، نقشه تعاملی توپولوژی شبکه (Interactive Network Topology Mapper)، تونل‌های سازمانی IPSec (Site-to-Site VPN Orchestrator)، بازیابی بحران و بازتولید کانفیگ (Disaster Recovery & Sanitized Config Replicator)، سیستم آژیر صوتی رویدادها (Web Audio Real-Time Alarms)، روتینگ پویا BGP/OSPF، پایشگر خودکار قطعی لینک‌ها (Netwatch Host Watchdog)، مدیریت هات‌اسپات و صدور ووچرهای مهمان (Hotspot & Guest Vouchers)، ماتریس پورت‌ها و مدیریت VLAN سوییچ‌ها (Switch VLAN & Port Matrix)، تونل‌ها و تولید کلاینت WireGuard (VPN & Client Generator)، بازرس ارتقای RouterOS و فریمور سخت‌افزار (Firmware & RouterBOOT Upgrade Inspector)، سپر امنیتی و بازرس فایروال (Security Shield)، مدیریت صف‌ها و کنترل سرعت (Simple Queues Traffic Shaper)، ابزار زنده تراز آنتن رادیو وایرلس (Antenna Alignment Tuner)، بازرس بلادرنگ کلاینت‌ها (Connected Clients Inspector)، مانیتورینگ زنده ترافیک پورت‌ها (Live Torch)، تحلیل سشن‌های فعال (Top Talkers)، سرویس ابری MikroTik Cloud DDNS، زمان‌بندی خودکار پشتیبان‌گیری، کشف همسایه‌ها (MNDP Neighbors)، مذاکره پورت‌ها و کنسول امن CLI*
 
 📖 **[مشاهده کتابچه راهنمای کامل کاربری و هوش مصنوعی (User Manual)](docs/USER_MANUAL.md)**
 
 ---
 
-## 🌟 اصول بنیادین معماری (نسخه ۱.۹)
+## 🌟 اصول بنیادین معماری (نسخه ۲.۰)
 
-### ۱. روتینگ پویا و پروتکل‌های BGP و OSPF (Dynamic Routing Visualizer):
+### ۱. نقشه تعاملی توپولوژی شبکه (Interactive Network Topology Mapper):
+- نگاشت زنده و گرافیکی ساختار همبندی شبکه در ۶ لایه زیرساخت (WAN، روتر مرکزی، سوییچ بریج و VLANها، تونل‌های VPN، لینک وایرلس و کلاینت‌ها).
+- تفکیک وضعیت لینک‌ها (مستقیم، فیل‌اور پشتیبان، تونل‌های رمزشده)، فیلتر لحظه‌ای لایه‌ها و دراور بازرسی مشخصات فنی هر گره با تست پینگ مستقیم.
+
+### ۲. تونل‌های سازمانی IPSec (Site-to-Site VPN Orchestrator):
+- استعلام و پایش بلادرنگ نشست‌های فعال IPSec (`/ip/ipsec/active-peers`) و پالیسی‌های رمزنگاری (`/ip/ipsec/policy`).
+- نمایش وضعیت Phase 1 & 2، استانداردهای رمزنگاری سخت‌افزاری IKEv2 و AES-256-GCM، و ترافیک تجمیعی شعب.
+- مودال ۱-کلیکی ایجاد اتصال امن شعبه به شعبه (Site-to-Site) بین ساب‌نت‌های محلی و دوردست با گارانتی Zero-Lockout.
+
+### ۳. بازیابی بحران و بازتولید کانفیگ (Disaster Recovery & Config Replicator):
+- استخراج و تولید اسکریپت فشرده و پالایش‌شده RouterOS 7 (`.rsc`) با حذف تداخل مک‌آدرس‌های فیزیکی و سریال‌نامبرهای سخت‌افزاری جهت استقرار آنی روی هر روتر جایگزین در شرایط بحران.
+- تهیه ۱-کلیکی بکاپ اضطراری دیسک و کپی یا دانلود مستقیم فایل پیکربندی استاندارد.
+
+### ۴. سیستم هشدار صوتی و تصویری رویدادهای بحرانی (Web Audio Alarms):
+- سینت‌سایزر داخلی بدون وابستگی بر پایه HTML5 Web Audio API برای پخش آژیرهای صوتی فرکانسی دوگانه در زمان قطع لینک‌های اینترنت، شکست هاست‌های Netwatch یا نفوذ امنیتی.
+
+### ۵. روتینگ پویا و پروتکل‌های BGP و OSPF (Dynamic Routing Visualizer):
 - استعلام و پایش بلادرنگ سشن‌های BGP (`/routing/bgp/session`) و همسایگان OSPF (`/routing/ospf/neighbor`).
 - نمایش وضعیت برقراری ارتباط (Established / Active / Idle)، شمارنده پیشوندهای دریافتی (Received Prefixes)، شماره‌های AS راه دور و محلی و زمان پایداری.
 - مودال ۱-کلیکی ایجاد سشن BGP با تعیین شماره‌های AS و تایمرهای Hold-Time / Keepalive با رعایت حفاظت Zero-Lockout.
@@ -104,7 +120,7 @@
 
 پوشه اختصاصی **`reference-device/`** شامل:
 1. **`reference-device/baseline/`**: اسکریپت‌های پایه کانفیگ (`01_interfaces`, `02_ip`, `03_routes`, `04_firewall`, `05_l2tp`, `06_container`).
-2. **`reference-device/tests/test_suite.py`**: آزمون‌گر خودکار ۲۰ مرحله‌ای برای تست پورت‌های مدیریت، قوانین عدم قفل‌شدگی (Zero-Lockout)، ماتریس VLAN سوییچ، کلاینت‌های وایرگارد، روتینگ داینامیک BGP/OSPF، پایشگر Netwatch، هات‌اسپات و ووچرهای مهمان، ارتقای فریمور RouterBOOT، پایش پینگ، سلامت فیل‌اور و کانتینر.
+2. **`reference-device/tests/test_suite.py`**: آزمون‌گر خودکار ۲۳ مرحله‌ای برای تست پورت‌های مدیریت، قوانین عدم قفل‌شدگی (Zero-Lockout)، ماتریس VLAN سوییچ، کلاینت‌های وایرگارد، روتینگ داینامیک BGP/OSPF، پایشگر Netwatch، هات‌اسپات و ووچرهای مهمان، تونل‌های سازمانی IPSec، نقشه تعاملی توپولوژی شبکه، پالایش و بازیابی بحران کانفیگ، ارتقای فریمور RouterBOOT، پایش پینگ، سلامت فیل‌اور و کانتینر.
 3. **`reference-device/REFERENCE_DEVICE.md`**: مستند جامع معماری، توپولوژی پورت‌ها، قوانین نام‌گذاری و مشخصات سخت‌افزاری روتر مرجع.
 
 ---
