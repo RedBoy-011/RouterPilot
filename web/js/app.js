@@ -13,6 +13,7 @@ const state = {
   wans: [],
   profiles: [],
   neighbors: [],
+  activeQuickFilter: 'all',
   pollTimer: null,
 };
 
@@ -25,6 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
   startHealthPolling();
   renderDynamicWANsTable();
   loadNeighbors();
+  loadQuickConfigProfiles();
 });
 
 // Navigation Handling
@@ -53,6 +55,7 @@ function switchTab(tabId) {
   if (tabId === 'routers') renderRoutersFleet();
   if (tabId === 'neighbors') loadNeighbors();
   if (tabId === 'discovery') loadDiscoveryData();
+  if (tabId === 'quick-config') loadQuickConfigProfiles();
   if (tabId === 'audit') loadAuditLogs();
 }
 
@@ -1517,5 +1520,260 @@ function connectToDiscoveredNeighbor(ip, mac, identity, model, devType) {
   if (!ip || ip === '0.0.0.0') {
     alert(`دستگاه «${identity}» با مک‌آدرس ${mac} کشف شد اما در حال حاضر فاقد آدرس IP در این ساب‌نت است.\nلطفاً IP موقت به آن اختصاص دهید یا اتصال را با پورت 80 آزمون فرمایید.`);
     hostInput?.focus();
+  }
+}
+
+// ==========================================
+// Quick Config Gallery & AI Instant Generator (v1.5)
+// ==========================================
+
+async function loadQuickConfigProfiles() {
+  try {
+    const res = await fetch('/api/profiles');
+    const data = await res.json();
+    state.profiles = data || [];
+    renderQuickConfigGrid();
+  } catch (err) {
+    console.error('Failed to load quick config profiles:', err);
+  }
+}
+
+function renderQuickConfigGrid() {
+  const grid = document.getElementById('quick-config-cards-grid');
+  if (!grid) return;
+
+  const filter = state.activeQuickFilter;
+  const filtered = state.profiles.filter(p => {
+    if (filter === 'all') return true;
+    return (p.Category && p.Category.toLowerCase().includes(filter.toLowerCase())) ||
+           (p.Name && p.Name.toLowerCase().includes(filter.toLowerCase()));
+  });
+
+  if (filtered.length === 0) {
+    grid.innerHTML = `
+      <div class="glass-panel" style="grid-column: 1 / -1; padding:36px; text-align:center; color:var(--text-muted);">
+        سناریویی در این دسته‌بندی یافت نشد.
+      </div>
+    `;
+    return;
+  }
+
+  grid.innerHTML = filtered.map(p => `
+    <div class="glass-panel stat-card" style="display:flex; flex-direction:column; justify-content:space-between; min-height:220px; border-right:4px solid var(--primary);">
+      <div>
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:10px;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:1.6rem;">${p.Icon || '⚡'}</span>
+            <div>
+              <span class="status-badge" style="font-size:0.72rem; padding:2px 8px; color:var(--primary);">${p.Category}</span>
+              <h3 style="margin:4px 0 0 0; font-size:1.02rem; color:#fff;">${p.TitleFa || p.Name}</h3>
+            </div>
+          </div>
+          <span style="font-size:0.75rem; color:var(--text-muted); font-family:monospace;">v${p.Version || '1.0'}</span>
+        </div>
+
+        <p style="font-size:0.83rem; color:var(--text-muted); line-height:1.5; margin:8px 0 14px 0;">
+          ${p.Description}
+        </p>
+      </div>
+
+      <div style="display:flex; justify-content:space-between; align-items:center; padding-top:12px; border-top:1px solid rgba(255,255,255,0.06);">
+        <span style="font-size:0.76rem; color:var(--text-muted);">
+          📋 ${p.Steps ? p.Steps.length : 1} مرحله اجرایی
+        </span>
+        <button class="btn btn-primary" style="font-size:0.8rem; padding:6px 14px;" onclick="compileProfileToPlan('${p.ID}')">
+          ⚡ ساخت Plan و پیش‌نمایش
+        </button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function filterQuickConfigCards(category, btnElement) {
+  state.activeQuickFilter = category;
+  document.querySelectorAll('.quick-filter-btn').forEach(b => b.classList.remove('active'));
+  if (btnElement) btnElement.classList.add('active');
+  renderQuickConfigGrid();
+}
+
+async function generateAIQuickPlan() {
+  const input = document.getElementById('quick-ai-prompt');
+  const statusEl = document.getElementById('quick-ai-status');
+  const btn = document.getElementById('btn-quick-ai-generate');
+  const prompt = input?.value.trim();
+
+  if (!prompt) {
+    alert('لطفاً سناریوی مورد نظر خود را تایپ فرمایید.');
+    return;
+  }
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = 'در حال پردازش و استخراج دستورات با AI... ⏳';
+  }
+  if (statusEl) {
+    statusEl.style.display = 'block';
+    statusEl.style.color = 'var(--primary)';
+    statusEl.innerText = 'هوش مصنوعی در حال بررسی ساختار روتر، اعتبارسنجی پارامترها و تدوین Plan است...';
+  }
+
+  try {
+    const res = await fetch('/api/plan/ai-generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt })
+    });
+    const data = await res.json();
+    if (data.success && data.plan) {
+      state.currentPlan = data.plan;
+      switchTab('plan');
+      renderPlanView(data.plan);
+      alert(`🎉 پلن «${data.plan.Name}» با موفقیت توسط هوش مصنوعی تولید شد!\nمی‌توانید مراحل و دستورات دقیق RouterOS را در جدول بررسی و با Dry-Run شبیه‌سازی کنید.`);
+      if (input) input.value = '';
+    } else {
+      alert('خطا در تولید پلن: ' + (data.error || 'خطای نامشخص'));
+    }
+  } catch (err) {
+    alert('خطای ارتباط با سرور: ' + err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = '⚡ تولید و پیش‌نمایش Plan';
+    }
+    if (statusEl) statusEl.style.display = 'none';
+  }
+}
+
+// ==========================================
+// Network Tools & Safe CLI Console Suite (v1.5)
+// ==========================================
+
+async function runLivePingProbe() {
+  const target = document.getElementById('ping-target-input')?.value.trim() || '8.8.8.8';
+  const count = parseInt(document.getElementById('ping-count-select')?.value || '4', 10);
+  const term = document.getElementById('ping-result-terminal');
+  const btn = document.getElementById('btn-run-ping');
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = 'در حال ارسال پکت‌ها... ⏳';
+  }
+  if (term) {
+    term.innerHTML = `<span style="color:#f59e0b;">PING ${target} (56 data bytes)...</span>\n`;
+  }
+
+  try {
+    const res = await fetch('/api/diagnostics/ping', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target, count })
+    });
+    const data = await res.json();
+    if (data.success) {
+      let output = `PING ${data.target} (${data.packets_sent} packets transmitted, ${data.packets_received} received, ${data.packet_loss}% packet loss)\n`;
+      data.lines.forEach(l => {
+        output += `  ${l}\n`;
+      });
+      output += `\n--- ${data.target} ping statistics ---\n`;
+      output += `rtt min/avg/max = ${data.min_ms} / ${data.avg_ms} / ${data.max_ms} ms [Healthy]`;
+      if (term) term.innerText = output;
+    } else {
+      if (term) term.innerHTML = `<span style="color:#ef4444;">خطا در ارسال پینگ: ${data.error || 'مقصد پاسخگو نیست'}</span>`;
+    }
+  } catch (err) {
+    if (term) term.innerHTML = `<span style="color:#ef4444;">خطای شبکه: ${err.message}</span>`;
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = 'ارسال پینگ';
+    }
+  }
+}
+
+async function runLiveDNSProbe() {
+  const domain = document.getElementById('dns-domain-input')?.value.trim() || 'google.com';
+  const box = document.getElementById('dns-result-box');
+  const btn = document.getElementById('btn-run-dns');
+
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = 'در حال استعلام... ⏳';
+  }
+  if (box) {
+    box.innerHTML = `<span style="color:#f59e0b;">Resolving domain '${domain}' via router resolver...</span>\n`;
+  }
+
+  try {
+    const res = await fetch('/api/diagnostics/dns', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ domain })
+    });
+    const data = await res.json();
+    if (data.success) {
+      let output = `DNS Resolution Result for: ${data.domain}\n`;
+      output += `Status: ${data.status}\n`;
+      output += `Resolved IPs:\n`;
+      data.ips.forEach((ip, idx) => {
+        output += `  [${idx + 1}] ${ip}\n`;
+      });
+      output += `\nQuery Response Time: ${data.latency_ms} ms`;
+      if (box) box.innerText = output;
+    } else {
+      if (box) box.innerHTML = `<span style="color:#ef4444;">خطای رزولوشن DNS: ${data.error}</span>`;
+    }
+  } catch (err) {
+    if (box) box.innerHTML = `<span style="color:#ef4444;">خطای شبکه: ${err.message}</span>`;
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = 'تست رزولوشن';
+    }
+  }
+}
+
+function setConsoleCommand(cmd) {
+  const input = document.getElementById('input-cli-command');
+  if (input) {
+    input.value = cmd;
+    input.focus();
+  }
+}
+
+async function submitCliCommand() {
+  const input = document.getElementById('input-cli-command');
+  const screen = document.getElementById('cli-terminal-screen');
+  const cmd = input?.value.trim();
+  if (!cmd) return;
+
+  if (screen) {
+    screen.innerHTML += `\n[admin@RouterPilot] > <span style="color:#fff;">${cmd}</span>\n`;
+  }
+  if (input) input.value = '';
+
+  try {
+    const res = await fetch('/api/command/run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ command: cmd })
+    });
+    const data = await res.json();
+    if (data.success) {
+      if (screen) {
+        screen.innerHTML += `<span style="color:#38bdf8;">${data.output}</span>\n`;
+      }
+    } else {
+      if (screen) {
+        screen.innerHTML += `<span style="color:#ef4444; font-weight:bold;">${data.error || 'دستور اجرا نشد.'}</span>\n`;
+      }
+    }
+  } catch (err) {
+    if (screen) {
+      screen.innerHTML += `<span style="color:#ef4444;">خطای شبکه: ${err.message}</span>\n`;
+    }
+  }
+
+  if (screen) {
+    screen.scrollTop = screen.scrollHeight;
   }
 }

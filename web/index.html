@@ -52,6 +52,18 @@
         </a>
       </li>
       <li>
+        <a class="nav-item" data-tab="quick-config">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+          کانفیگ‌های فوری ⚡
+        </a>
+      </li>
+      <li>
+        <a class="nav-item" data-tab="tools">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"></path></svg>
+          ابزارهای شبکه 🛠️
+        </a>
+      </li>
+      <li>
         <a class="nav-item" data-tab="plan">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
           Planها
@@ -391,6 +403,136 @@
             </thead>
             <tbody id="interfaces-table-body"></tbody>
           </table>
+        </div>
+      </section>
+
+      <!-- TAB 3.5: QUICK CONFIG GALLERY & AI INSTANT GENERATOR -->
+      <section id="tab-quick-config" class="tab-pane">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+          <div>
+            <h2>⚡ مرکز کانفیگ‌های فوری روزمره (Instant Quick-Config)</h2>
+            <p style="color:var(--text-muted); font-size:0.9rem;">کانفیگ‌های استاندارد آماده و آزموده شده مهندسی زیرساخت شبکه، قابل اجرا با یک کلیک و با گارانتی ایمنی Zero-Lockout</p>
+          </div>
+        </div>
+
+        <!-- AI Instant Plan Generator Banner -->
+        <div class="glass-panel" style="padding:20px; margin-bottom:24px; border-right:4px solid var(--primary); background:rgba(6,182,212,0.04);">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:1.3rem;">🤖</span>
+              <h4 style="margin:0; color:#fff;">تولید کانفیگ آنی با هوش مصنوعی (AI Instant Generator):</h4>
+            </div>
+            <span class="status-badge" style="color:var(--primary);">Prompt-to-Plan v1.5</span>
+          </div>
+          <p style="font-size:0.84rem; color:var(--text-muted); margin-bottom:12px;">
+            هر سناریویی که در ذهن دارید به زبان فارسی ساده بنویسید (مثلاً: «پورت ۸۰۸۰ را به دوربین ۱۹۲.۱۶۸.۸۸.۵۰ منتقل کن» یا «سرعت دانلود مهمان را به ۱۰ مگابیت لیمیت کن»):
+          </p>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <input id="quick-ai-prompt" type="text" placeholder="سناریوی دلخواه را تایپ کنید..." style="flex:1; min-width:260px; padding:12px; background:rgba(255,255,255,0.06); border:1px solid var(--glass-border); border-radius:10px; color:#fff;">
+            <button id="btn-quick-ai-generate" class="btn btn-primary" onclick="generateAIQuickPlan()" style="white-space:nowrap; padding:12px 20px;">
+              ⚡ تولید و پیش‌نمایش Plan
+            </button>
+          </div>
+          <div id="quick-ai-status" style="margin-top:8px; font-size:0.8rem; display:none;"></div>
+        </div>
+
+        <!-- Filter Chips -->
+        <div style="display:flex; gap:8px; margin-bottom:18px; flex-wrap:wrap;">
+          <button class="btn btn-outline quick-filter-btn active" onclick="filterQuickConfigCards('all', this)" style="padding:6px 14px; font-size:0.82rem;">همه سناریوها</button>
+          <button class="btn btn-outline quick-filter-btn" onclick="filterQuickConfigCards('Security', this)" style="padding:6px 14px; font-size:0.82rem;">🛡️ امنیت و فایروال</button>
+          <button class="btn btn-outline quick-filter-btn" onclick="filterQuickConfigCards('VPN', this)" style="padding:6px 14px; font-size:0.82rem;">🌐 تونل و WireGuard</button>
+          <button class="btn btn-outline quick-filter-btn" onclick="filterQuickConfigCards('Routing', this)" style="padding:6px 14px; font-size:0.82rem;">⚡ مسیریابی و QoS</button>
+          <button class="btn btn-outline quick-filter-btn" onclick="filterQuickConfigCards('Wireless', this)" style="padding:6px 14px; font-size:0.82rem;">📡 وایرلس و رادیو PTP</button>
+          <button class="btn btn-outline quick-filter-btn" onclick="filterQuickConfigCards('Switching', this)" style="padding:6px 14px; font-size:0.82rem;">🔀 سوییچینگ و VLAN</button>
+        </div>
+
+        <!-- Quick Config Grid -->
+        <div id="quick-config-cards-grid" class="kpi-grid" style="grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));">
+          <!-- Dynamically populated via renderQuickConfigGrid() -->
+        </div>
+      </section>
+
+      <!-- TAB 3.6: NETWORK TOOLS & DIAGNOSTICS SUITE -->
+      <section id="tab-tools" class="tab-pane">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+          <div>
+            <h2>🛠️ ابزارهای زنده شبکه و کنسول امن (Diagnostics & Tools)</h2>
+            <p style="color:var(--text-muted); font-size:0.9rem;">پایش پینگ مستقیم روتر، آزمون DNS، اجرای امن فرامین RouterOS و دانلود فایل کانفیگ .rsc</p>
+          </div>
+          <a href="/api/backup/export" target="_blank" class="btn btn-outline" style="font-size:0.85rem; padding:8px 16px;">
+            📥 دانلود کانفیگ متنی روتر (.rsc)
+          </a>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; margin-bottom:24px;">
+          
+          <!-- Tool 1: Live Ping Probe -->
+          <div class="glass-panel" style="padding:20px; border-radius:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+              <h3 style="font-size:1.05rem; color:#fff;">⏱️ پایش پینگ زنده (Ping & Latency Probe)</h3>
+              <span class="status-badge" style="color:var(--primary);">ICMP / Socket</span>
+            </div>
+            <div style="display:flex; gap:10px; margin-bottom:12px;">
+              <input id="ping-target-input" type="text" value="8.8.8.8" placeholder="آدرس IP یا دامنه (مثلاً: 8.8.8.8 یا 1.1.1.1)" style="flex:1; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+              <select id="ping-count-select" style="background:#1e293b; border:1px solid var(--glass-border); border-radius:8px; color:#fff; padding:10px;">
+                <option value="4" selected>۴ پکت</option>
+                <option value="8">۸ پکت</option>
+                <option value="12">۱۲ پکت</option>
+              </select>
+              <button id="btn-run-ping" class="btn btn-primary" onclick="runLivePingProbe()">
+                ارسال پینگ
+              </button>
+            </div>
+            <div id="ping-result-terminal" style="background:#090d16; border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:12px; font-family:monospace; font-size:0.8rem; color:#38bdf8; min-height:120px; max-height:160px; overflow-y:auto; line-height:1.6;" dir="ltr">
+              -- برای مشاهده پینگ، دکمه «ارسال پینگ» را بزنید --
+            </div>
+          </div>
+
+          <!-- Tool 2: Live DNS Resolution Check -->
+          <div class="glass-panel" style="padding:20px; border-radius:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+              <h3 style="font-size:1.05rem; color:#fff;">🔍 ارزیابی و تست DNS (DNS Health Check)</h3>
+              <span class="status-badge" style="color:#10b981;">DoH / Resolver</span>
+            </div>
+            <div style="display:flex; gap:10px; margin-bottom:12px;">
+              <input id="dns-domain-input" type="text" value="google.com" placeholder="نام دامنه (مثلاً: shecan.ir یا google.com)" style="flex:1; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+              <button id="btn-run-dns" class="btn btn-primary" onclick="runLiveDNSProbe()">
+                تست رزولوشن
+              </button>
+            </div>
+            <div id="dns-result-box" style="background:#090d16; border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:12px; font-family:monospace; font-size:0.8rem; color:#10b981; min-height:120px; max-height:160px; overflow-y:auto; line-height:1.6;" dir="ltr">
+              -- وضعیت رزولوشن DNS پس از تست در اینجا نمایش داده می‌شود --
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Tool 3: Safe RouterOS Interactive CLI Console -->
+        <div class="glass-panel" style="padding:22px; border-radius:14px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:10px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:1.2rem;">💻</span>
+              <h3 style="margin:0; color:#fff;">کنسول تعاملی RouterOS با ایمنی Zero-Lockout (Safe CLI)</h3>
+            </div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button class="btn btn-outline" style="font-size:0.75rem; padding:4px 8px;" onclick="setConsoleCommand('/ip address print')">/ip address print</button>
+              <button class="btn btn-outline" style="font-size:0.75rem; padding:4px 8px;" onclick="setConsoleCommand('/interface print')">/interface print</button>
+              <button class="btn btn-outline" style="font-size:0.75rem; padding:4px 8px;" onclick="setConsoleCommand('/ip route print')">/ip route print</button>
+              <button class="btn btn-outline" style="font-size:0.75rem; padding:4px 8px;" onclick="setConsoleCommand('/system resource print')">/system resource print</button>
+            </div>
+          </div>
+          
+          <div id="cli-terminal-screen" style="background:#060a12; border:1px solid rgba(56,189,248,0.25); border-radius:10px; padding:16px; font-family:monospace; font-size:0.85rem; color:#a5f3fc; min-height:180px; max-height:260px; overflow-y:auto; white-space:pre-wrap; line-height:1.5; margin-bottom:12px;" dir="ltr">RouterPilot Safe CLI Environment [Connected to RouterOS]
+Type any RouterOS command or select from quick templates above.
+Destructive lockout commands (e.g., reset-configuration, bridge disable) are strictly blocked.
+[admin@RouterPilot] &gt; </div>
+
+          <form id="form-cli" onsubmit="event.preventDefault(); submitCliCommand();" style="display:flex; gap:10px;">
+            <input id="input-cli-command" type="text" placeholder="دستور را وارد کنید (مثلاً: /system resource print)" style="flex:1; padding:12px; background:rgba(255,255,255,0.06); border:1px solid var(--glass-border); border-radius:8px; color:#fff; font-family:monospace;" dir="ltr">
+            <button type="submit" class="btn btn-primary" style="padding:12px 24px;">
+              اجرا ↵
+            </button>
+          </form>
         </div>
       </section>
 
