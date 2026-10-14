@@ -2056,10 +2056,16 @@ Destructive lockout commands (e.g., reset-configuration, bridge disable) are str
 
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
           <div>
-            <label style="font-size:0.82rem; color:var(--text-muted);">پورت ارتباطی (تشخیص هوشمند):</label>
-            <input id="new-router-port" type="text" placeholder="auto یا 80 / 443 / 8728" value="auto" style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
-            <span style="display:block; font-size:0.72rem; color:var(--text-muted); margin-top:3px;">
-              💡 auto: بررسی خودکار پورت‌های 80، 443، 8728 و 8291
+            <label style="font-size:0.82rem; color:var(--text-muted);">پورت ارتباطی (وین‌باکس / خودکار):</label>
+            <input id="new-router-port" type="text" placeholder="auto یا 8291 (وین‌باکس)" value="auto" style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+            <div style="display:flex; gap:6px; margin-top:6px; flex-wrap:wrap;">
+              <button type="button" class="btn btn-secondary" style="padding:2px 8px; font-size:0.72rem; border-radius:4px; cursor:pointer;" onclick="document.getElementById('new-router-port').value='auto';">⚡ Auto</button>
+              <button type="button" class="btn btn-secondary" style="padding:2px 8px; font-size:0.72rem; border-radius:4px; cursor:pointer; background:rgba(16,185,129,0.15); border-color:#10b981; color:#34d399;" onclick="document.getElementById('new-router-port').value='8291';">📶 Winbox (8291)</button>
+              <button type="button" class="btn btn-secondary" style="padding:2px 8px; font-size:0.72rem; border-radius:4px; cursor:pointer;" onclick="document.getElementById('new-router-port').value='8728';">🔌 API (8728)</button>
+              <button type="button" class="btn btn-secondary" style="padding:2px 8px; font-size:0.72rem; border-radius:4px; cursor:pointer;" onclick="document.getElementById('new-router-port').value='80';">🌐 Web (80)</button>
+            </div>
+            <span style="display:block; font-size:0.72rem; color:var(--text-muted); margin-top:4px;">
+              💡 اتصال مستقیم با پورت وین‌باکس (8291) بدون نیاز به تنظیمات خاص روی روتر
             </span>
           </div>
           <div>

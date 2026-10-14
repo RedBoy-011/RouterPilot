@@ -1317,7 +1317,7 @@ async function saveNewRouter() {
   }
   if (msgEl) {
     msgEl.style.display = 'block';
-    msgEl.innerHTML = '<span style="color:var(--primary);">در حال بررسی خودکار پورت‌های باز (80، 443، 8728، 8291)... لطفاً شکیبا باشید.</span>';
+    msgEl.innerHTML = '<span style="color:var(--primary);">در حال برقراری اتصال به روتر (پورت‌های 8291 وین‌باکس، 8728، 80 و 443)... لطفاً شکیبا باشید.</span>';
   }
 
   try {
