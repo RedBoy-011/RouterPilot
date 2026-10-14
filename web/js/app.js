@@ -1427,7 +1427,10 @@ async function loadNeighbors() {
   const statusEl = document.getElementById('neighbors-scan-status');
   try {
     const res = await fetch('/api/neighbors');
-    const data = await res.json();
+    if (!res.ok) return;
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); } catch (_) { return; }
     state.neighbors = data.neighbors || [];
     renderNeighborsTable(state.neighbors);
     updateModalNeighborsDropdown(state.neighbors);
@@ -1461,7 +1464,16 @@ async function triggerNeighborsScan() {
 
   try {
     const res = await fetch('/api/neighbors/scan', { method: 'POST' });
-    const data = await res.json();
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (parseErr) {
+      throw new Error(`پاسخ سرور در قالب JSON نیست (کد وضعیت: ${res.status}). لطفاً مطمئن شوید نسخه جدید RouterPilot v2.0 در حال اجراست.\nمتن دریافت شده: ${text.substring(0, 100)}`);
+    }
+    if (!res.ok) {
+      throw new Error(data?.error || `خطای سرور با کد ${res.status}`);
+    }
     state.neighbors = data.neighbors || [];
     renderNeighborsTable(state.neighbors);
     updateModalNeighborsDropdown(state.neighbors);

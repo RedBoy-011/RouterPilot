@@ -30,11 +30,19 @@ func main() {
 	addr := fmt.Sprintf("127.0.0.1:%d", *port)
 	url := fmt.Sprintf("http://%s", addr)
 
-	fmt.Println("================================================================")
-	fmt.Println("🚀 RouterPilot Control Plane v1.1 [Windows Portable]")
-	fmt.Println("   معماری ایمن، هوشمند و تراکنشی مدیریت روترهای میکروتیک")
-	fmt.Printf("   داشبورد وب در دسترس است: %s\n", url)
-	fmt.Println("================================================================")
+	fmt.Println("+==============================================================================+")
+	fmt.Println("|             RouterPilot Control Plane v2.0 Enterprise Edition                |")
+	fmt.Println("+==============================================================================+")
+	fmt.Printf("| [STATUS] Vaziat Server   : ONLINE & AMADEH KAR (Port %d)\n", *port)
+	fmt.Printf("| [URL]    Web Dashboard   : %s\n", url)
+	fmt.Println("| [MNDP]   L2 Discovery    : FA'AL (UDP Port 5678 / WinBox Mode)               |")
+	fmt.Println("| [PORTS]  Auto-Detect     : Port 80 (Web), 443 (REST), 8728 (API), 8291, 22   |")
+	fmt.Println("+==============================================================================+")
+	fmt.Println("| RAHNAMA (FINGLISH):                                                          |")
+	fmt.Println("|  * Dashboard dar Browser baz shod.                                           |")
+	fmt.Println("|  * Dar bakhshe Neighbors, dokmeye MNDP Scan ra bezanid.                      |")
+	fmt.Println("|  * Baraye khorooj, kelidhaye [Ctrl + C] ra bezanid.                          |")
+	fmt.Println("+==============================================================================+")
 
 	if !*headless {
 		go func() {

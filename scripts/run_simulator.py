@@ -32,9 +32,23 @@ import subprocess
 import webbrowser
 from datetime import datetime
 
+# Safe console encoding for Windows non-UTF-8 terminals
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 PORT = 8080
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-WEB_DIR = os.path.join(BASE_DIR, "web")
+if getattr(sys, 'frozen', False):
+    BASE_DIR = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    WEB_DIR = os.path.join(BASE_DIR, "web")
+    if not os.path.isdir(WEB_DIR):
+        WEB_DIR = os.path.join(os.path.dirname(sys.executable), "web")
+else:
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    WEB_DIR = os.path.join(BASE_DIR, "web")
 
 # In-memory clean Control Plane state (NO hardcoded fake router data!)
 state = {
@@ -4601,20 +4615,52 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
             self.send_error(404)
 
 def run():
-    print("=" * 64)
-    print("🚀 RouterPilot Control Plane v1.4 [Smart Network Controller]")
-    print("   قابلیت کشف همسایه‌ها (MNDP Neighbors) + تشخیص خودکار پورت و نقش دستگاه")
-    print(f"   داشبورد وب در دسترس است: http://127.0.0.1:{PORT}")
-    print("=" * 64)
+    banner = f"""
++==============================================================================+
+|   ____             _            ____  _ _       _          ____   ___        |
+|  |  _ \\ ___  _   _| |_ ___ _ __|  _ \\(_) | ___ | |_  __   |___ \\ / _ \\       |
+|  | |_) / _ \\| | | | __/ _ \\ '__| |_) | | |/ _ \\| __| \\ \\ / / __)| | | |      |
+|  |  _ < (_) | |_| | ||  __/ |  |  __/| | | (_) | |_   \\ V / /__ | |_| |      |
+|  |_| \\_\\___/ \\__,_|\\__\\___|_|  |_|   |_|_|\\___/ \\__|   \\_/ |_____|\\___/       |
+|                                                                              |
+|             RouterPilot Control Plane v2.0 Enterprise Edition                |
++==============================================================================+
+| [STATUS] Vaziat Server   : ONLINE & AMADEH KAR (Port {PORT})                   |
+| [URL]    Web Dashboard   : http://127.0.0.1:{PORT}                             |
+| [MNDP]   L2 Discovery    : FA'AL (UDP Port 5678 / WinBox Neighbor Scanner)   |
+| [PORTS]  Auto-Detect     : Port 80 (Web), 443 (REST), 8728 (API), 8291, 22   |
+| [ROLES]  Smart Engine    : Wireless Radios (LHG/SXT) + CRS + Gateway Routers |
++==============================================================================+
+| RAHNAMA VA DASTOORAT (FINGLISH):                                             |
+| ---------------------------------------------------------------------------- |
+|  * Safheye Web Dashboard be tore khodkar dar Browser baz mishavad.           |
+|  * Dar bakhshe "Neighbors", dokmeye "MNDP Scan" ra bezanid ta tamame         |
+|    device-haye MikroTik dar LAN be tore zendeh kashf va list shavand.        |
+|  * Ba zadan dokmeye "Etesal ba Auto-Port", sistem khodkar behtarin Port      |
+|    va Protocol ra tashkhis dadeh va motasel mishavad.                        |
+|  * Baraye bastan va khorooj az barnameh, kelidhaye [Ctrl + C] ra feshar dahid|
++==============================================================================+
+| [*] Server dar hale ejra ast... Montazere darkhast az Dashboard...           |
++==============================================================================+
+"""
+    print(banner.strip())
 
-    # Launch browser after half a second
-    webbrowser.open(f"http://127.0.0.1:{PORT}")
+    # Auto-open browser
+    try:
+        webbrowser.open(f"http://127.0.0.1:{PORT}")
+    except Exception:
+        pass
 
-    with socketserver.TCPServer(("127.0.0.1", PORT), RouterPilotHTTPHandler) as httpd:
-        try:
-            httpd.serve_forever()
-        except KeyboardInterrupt:
-            print("\nShutting down RouterPilot server.")
+    socketserver.TCPServer.allow_reuse_address = True
+    try:
+        with socketserver.TCPServer(("127.0.0.1", PORT), RouterPilotHTTPHandler) as httpd:
+            try:
+                httpd.serve_forever()
+            except KeyboardInterrupt:
+                print("\n[!] Server motavaghef shod. Khodahafez!")
+    except OSError as e:
+        print(f"\n[ERROR] Port {PORT} mashghool ast: {e}")
+        print("Lotfan barnameh-haye digar ya noskhe ghadimi ra bebandid.")
 
 if __name__ == "__main__":
     run()
