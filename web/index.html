@@ -94,6 +94,24 @@
         </a>
       </li>
       <li>
+        <a class="nav-item" data-tab="routing">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"></polyline><line x1="4" y1="20" x2="21" y2="3"></line><polyline points="21 16 21 21 16 21"></polyline><line x1="15" y1="15" x2="21" y2="21"></line><line x1="4" y1="4" x2="9" y2="9"></line></svg>
+          روتینگ پویا (BGP/OSPF) 🌐
+        </a>
+      </li>
+      <li>
+        <a class="nav-item" data-tab="netwatch">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
+          پایشگر Netwatch ⏱️
+        </a>
+      </li>
+      <li>
+        <a class="nav-item" data-tab="hotspot">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg>
+          هات‌اسپات و ووچر 🎟️
+        </a>
+      </li>
+      <li>
         <a class="nav-item" data-tab="plan">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
           Planها
@@ -1198,6 +1216,272 @@ Destructive lockout commands (e.g., reset-configuration, bridge disable) are str
 
       </section>
 
+      <!-- TAB 3.12: DYNAMIC ROUTING & BGP/OSPF (v1.9) -->
+      <section id="tab-routing" class="tab-pane">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+          <div>
+            <h2>🌐 روتینگ پویا و پروتکل‌های BGP و OSPF (Dynamic Routing Visualizer)</h2>
+            <p style="color:var(--text-muted); font-size:0.9rem;">پایش بلادرنگ سشن‌های BGP، همسایگان OSPF، جدول روت‌های پویا و پیکربندی امن پیرها با گارانتی Zero-Lockout</p>
+          </div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-outline" onclick="loadDynamicRouting(true)" style="font-size:0.85rem; padding:8px 14px;">
+              🔄 بروزرسانی روتینگ
+            </button>
+            <button type="button" class="btn btn-primary" onclick="openAddBgpPeerModal()" style="font-size:0.85rem; padding:8px 16px;">
+              ➕ ایجاد سشن BGP (Add Peer)
+            </button>
+          </div>
+        </div>
+
+        <!-- 4 KPI Glass Cards for Routing -->
+        <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); margin-bottom:22px;">
+          <div class="glass-panel kpi-card">
+            <div class="kpi-header"><span>سشن‌های فعال BGP</span><span>🤝</span></div>
+            <div class="kpi-value font-mono" id="kpi-bgp-session-count" style="color:var(--primary);">---</div>
+            <div class="kpi-sub" id="kpi-bgp-as-sub">Local AS: 65001</div>
+          </div>
+          <div class="glass-panel kpi-card">
+            <div class="kpi-header"><span>همسایگان OSPF (Neighbors)</span><span>🔄</span></div>
+            <div class="kpi-value font-mono" id="kpi-ospf-neighbor-count" style="color:#10b981;">---</div>
+            <div class="kpi-sub">وضعیت Full Adjacency</div>
+          </div>
+          <div class="glass-panel kpi-card">
+            <div class="kpi-header"><span>کل روت‌های فعال (Routing Table)</span><span>🛣️</span></div>
+            <div class="kpi-value font-mono" id="kpi-routing-total-routes" style="color:#38bdf8;">---</div>
+            <div class="kpi-sub" id="kpi-routing-routes-sub">BGP / OSPF / Static</div>
+          </div>
+          <div class="glass-panel kpi-card">
+            <div class="kpi-header"><span>وضعیت سلامت روتینگ</span><span>⚡</span></div>
+            <div class="kpi-value font-mono" id="kpi-routing-health-status" style="color:#a855f7;">پایدار</div>
+            <div class="kpi-sub">تبادل مسیر بدون قطعی</div>
+          </div>
+        </div>
+
+        <!-- BGP Sessions Table -->
+        <div class="glass-panel" style="padding:22px; margin-bottom:24px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <div>
+              <h3 style="font-size:1.1rem; color:#fff;">سشن‌های پروتکل BGP (/routing/bgp/session)</h3>
+              <span style="font-size:0.8rem; color:var(--text-muted);">مشاهده ارتباط با Upstream، ارائه‌دهندگان اینترنت، IXP و تعداد پیشوند‌های دریافتی</span>
+            </div>
+            <span class="status-badge" style="color:var(--primary);">BGP4 / MP-BGP</span>
+          </div>
+
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>نام سشن</th>
+                  <th>IP پیر مقصد (Remote)</th>
+                  <th>AS راه دور</th>
+                  <th>وضعیت ارتباط</th>
+                  <th>مدت پایداری (Uptime)</th>
+                  <th>پیشوندهای دریافتی (Prefixes)</th>
+                  <th>Hold Time</th>
+                </tr>
+              </thead>
+              <tbody id="bgp-sessions-table-body">
+                <tr>
+                  <td colspan="7" style="text-align:center; padding:28px; color:var(--text-muted);">
+                    در حال دریافت سشن‌های BGP از روتر...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- OSPF Neighbors Table -->
+        <div class="glass-panel" style="padding:22px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <div>
+              <h3 style="font-size:1.1rem; color:#fff;">همسایگان فعال پروتکل OSPF (/routing/ospf/neighbor)</h3>
+              <span style="font-size:0.8rem; color:var(--text-muted);">شناسایی روترهای همجوار، اولویت DR/BDR و تایمر Dead Time</span>
+            </div>
+            <span class="status-badge" style="color:#10b981;">OSPFv2 / OSPFv3</span>
+          </div>
+
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Router ID</th>
+                  <th>آدرس IP همسایه</th>
+                  <th>اینترفیس رابط</th>
+                  <th>وضعیت همسایگی (State)</th>
+                  <th>اولویت (Priority)</th>
+                  <th>تایم‌اوت Dead Time</th>
+                </tr>
+              </thead>
+              <tbody id="ospf-neighbors-table-body">
+                <tr>
+                  <td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);">
+                    در حال دریافت همسایگان OSPF...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- TAB 3.13: NETWATCH HOST WATCHDOG (v1.9) -->
+      <section id="tab-netwatch" class="tab-pane">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+          <div>
+            <h2>⏱️ پایشگر خودکار قطعی لینک‌ها (Netwatch Host Watchdog)</h2>
+            <p style="color:var(--text-muted); font-size:0.9rem;">پایش ثانیه‌ای پایداری سرورها، گیت‌وی‌ها و دکل‌ها با واکنش و اجرای خودکار اسکریپت فیل‌اور در زمان قطعی</p>
+          </div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-outline" onclick="loadNetwatch(true)" style="font-size:0.85rem; padding:8px 14px;">
+              🔄 بروزرسانی پروب‌ها
+            </button>
+            <button type="button" class="btn btn-primary" onclick="openAddNetwatchModal()" style="font-size:0.85rem; padding:8px 16px;">
+              ➕ افزودن پروب جدید (Add Host Watch)
+            </button>
+          </div>
+        </div>
+
+        <!-- 4 KPI Glass Cards for Netwatch -->
+        <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); margin-bottom:22px;">
+          <div class="glass-panel kpi-card">
+            <div class="kpi-header"><span>کل هاست‌های تحت پایش</span><span>🎯</span></div>
+            <div class="kpi-value font-mono" id="kpi-nw-total-count" style="color:var(--primary);">---</div>
+            <div class="kpi-sub">تارگت‌های ثبت‌شده در روتر</div>
+          </div>
+          <div class="glass-panel kpi-card">
+            <div class="kpi-header"><span>لینک‌های سالم و آنلاین (UP)</span><span>🟢</span></div>
+            <div class="kpi-value font-mono" id="kpi-nw-up-count" style="color:#10b981;">---</div>
+            <div class="kpi-sub">بدون پکت‌لاس و اختلال</div>
+          </div>
+          <div class="glass-panel kpi-card">
+            <div class="kpi-header"><span>لینک‌های قطع و هشدار (DOWN)</span><span>🔴</span></div>
+            <div class="kpi-value font-mono" id="kpi-nw-down-count" style="color:#ef4444;">---</div>
+            <div class="kpi-sub">نیازمند بررسی فوری</div>
+          </div>
+          <div class="glass-panel kpi-card">
+            <div class="kpi-header"><span>پایداری کلی شبکه (Uptime)</span><span>📊</span></div>
+            <div class="kpi-value font-mono" id="kpi-nw-uptime-ratio" style="color:#38bdf8;">۱۰۰٪</div>
+            <div class="kpi-sub">میانگین وضعیت پروب‌ها</div>
+          </div>
+        </div>
+
+        <!-- Netwatch Targets Table -->
+        <div class="glass-panel" style="padding:22px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <div>
+              <h3 style="font-size:1.1rem; color:#fff;">جدول پروب‌های ناظر سیستم (/tool/netwatch)</h3>
+              <span style="font-size:0.8rem; color:var(--text-muted);">پایش مداوم ICMP با اجرای اسکریپت‌های Up و Down جهت فیل‌اور یا ثبت لاگ</span>
+            </div>
+            <input id="input-search-netwatch" type="text" placeholder="جستجو بر اساس IP یا شرح..." style="padding:6px 14px; background:rgba(255,255,255,0.06); border:1px solid var(--glass-border); border-radius:8px; color:#fff; font-size:0.85rem;" oninput="filterNetwatchTable(this.value)">
+          </div>
+
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>آدرس هاست هدف (Target Host)</th>
+                  <th>وضعیت کنونی</th>
+                  <th>فاصله تست (Interval)</th>
+                  <th>مهلت پاسخ (Timeout)</th>
+                  <th>زمان تغییر وضعیت</th>
+                  <th>درصد پکت‌لاس</th>
+                  <th>شرح و هدف پروب</th>
+                  <th>اقدام سریع</th>
+                </tr>
+              </thead>
+              <tbody id="netwatch-targets-table-body">
+                <tr>
+                  <td colspan="8" style="text-align:center; padding:32px; color:var(--text-muted);">
+                    در حال دریافت رکوردهای Netwatch از روتر...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- TAB 3.14: HOTSPOT & GUEST VOUCHERS (v1.9) -->
+      <section id="tab-hotspot" class="tab-pane">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+          <div>
+            <h2>🎟️ مدیریت هات‌اسپات و تولید ووچرهای مهمان (Hotspot & Guest Vouchers)</h2>
+            <p style="color:var(--text-muted); font-size:0.9rem;">پایش سشن‌های فعال هات‌اسپات، صدور ۱-کلیکی دسته‌ای کارت‌های اینترنت موقت با محدودیت زمانی و حجمی</p>
+          </div>
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-outline" onclick="loadHotspot(true)" style="font-size:0.85rem; padding:8px 14px;">
+              🔄 بروزرسانی هات‌اسپات
+            </button>
+            <button type="button" class="btn btn-primary" onclick="openCreateVoucherModal()" style="font-size:0.85rem; padding:8px 16px;">
+              🎟️ تولید ووچرهای مهمان (Generate Vouchers)
+            </button>
+          </div>
+        </div>
+
+        <!-- 4 KPI Glass Cards for Hotspot -->
+        <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); margin-bottom:22px;">
+          <div class="glass-panel kpi-card">
+            <div class="kpi-header"><span>سرورهای فعال هات‌اسپات</span><span>📡</span></div>
+            <div class="kpi-value font-mono" id="kpi-hs-server-count" style="color:var(--primary);">---</div>
+            <div class="kpi-sub" id="kpi-hs-iface-sub">اینترفیس خروجی: ---</div>
+          </div>
+          <div class="glass-panel kpi-card">
+            <div class="kpi-header"><span>کاربران آنلاین فعلی</span><span>👥</span></div>
+            <div class="kpi-value font-mono" id="kpi-hs-active-users" style="color:#10b981;">---</div>
+            <div class="kpi-sub">سشن‌های احرازشده در شبکه</div>
+          </div>
+          <div class="glass-panel kpi-card">
+            <div class="kpi-header"><span>کل ووچرهای صادرشده</span><span>🎫</span></div>
+            <div class="kpi-value font-mono" id="kpi-hs-total-vouchers" style="color:#38bdf8;">---</div>
+            <div class="kpi-sub">کاربران تعریف‌شده (/ip/hotspot/user)</div>
+          </div>
+          <div class="glass-panel kpi-card">
+            <div class="kpi-header"><span>ترافیک کل رد و بدل شده</span><span>⚡</span></div>
+            <div class="kpi-value font-mono" id="kpi-hs-traffic-val" style="color:#a855f7;">---</div>
+            <div class="kpi-sub">ارسال و دریافت هات‌اسپات</div>
+          </div>
+        </div>
+
+        <!-- Hotspot Active Sessions Table -->
+        <div class="glass-panel" style="padding:22px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <div>
+              <h3 style="font-size:1.1rem; color:#fff;">سشن‌های آنلاین و فعال کاربران (/ip/hotspot/active)</h3>
+              <span style="font-size:0.8rem; color:var(--text-muted);">پایش حجم مصرفی، زمان اتصال و زمان باقیمانده به تفکیک مک‌آدرس و IP</span>
+            </div>
+            <input id="input-search-hotspot" type="text" placeholder="جستجوی کاربر یا IP..." style="padding:6px 14px; background:rgba(255,255,255,0.06); border:1px solid var(--glass-border); border-radius:8px; color:#fff; font-size:0.85rem;" oninput="filterHotspotTable(this.value)">
+          </div>
+
+          <div class="data-table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>نام کاربری / ووچر</th>
+                  <th>آدرس IP اختصاصی</th>
+                  <th>مک‌آدرس دستگاه</th>
+                  <th>مدت زمان آنلاین</th>
+                  <th>دانلود (RX)</th>
+                  <th>آپلود (TX)</th>
+                  <th>زمان باقیمانده</th>
+                  <th>اقدام</th>
+                </tr>
+              </thead>
+              <tbody id="hotspot-active-table-body">
+                <tr>
+                  <td colspan="8" style="text-align:center; padding:32px; color:var(--text-muted);">
+                    در حال دریافت سشن‌های فعال هات‌اسپات از روتر...
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </section>
+
       <!-- TAB 4: PLAN BUILDER -->
       <section id="tab-plan" class="tab-pane">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
@@ -1719,6 +2003,179 @@ Destructive lockout commands (e.g., reset-configuration, bridge disable) are str
           </button>
           <button type="button" class="btn btn-primary" onclick="proceedWireGuardPeerPlan()">
             ⚡ ثبت نهایی Peer در روتر (Apply Plan)
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Add BGP Peer (v1.9) -->
+  <div id="modal-add-bgp-peer" class="modal-overlay" style="display:none;">
+    <div class="glass-panel modal-card" style="max-width:500px; width:100%; padding:24px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 style="margin:0; color:#fff; display:flex; align-items:center; gap:8px;">
+          <span>🌐</span> ایجاد همسایگی BGP (BGP Connection / Peer)
+        </h3>
+        <button type="button" class="btn btn-outline" style="padding:4px 8px;" onclick="closeAddBgpPeerModal()">✕</button>
+      </div>
+
+      <form id="form-add-bgp-peer" onsubmit="event.preventDefault(); submitAddBgpPeer();">
+        <div style="margin-bottom:14px;">
+          <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:6px;">نام سشن BGP:</label>
+          <input id="bgp-peer-name-input" type="text" placeholder="مثلاً: bgp-upstream-isp یا bgp-ixp" required style="width:100%; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;">
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:6px;">آدرس IP پیر راه دور (Remote Address):</label>
+          <input id="bgp-peer-ip-input" type="text" placeholder="مثال: 194.225.1.1 یا 185.190.240.1" required style="width:100%; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:18px;">
+          <div>
+            <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:6px;">شماره Remote AS:</label>
+            <input id="bgp-remote-as-input" type="number" value="64512" min="1" max="4294967295" required style="width:100%; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;">
+          </div>
+          <div>
+            <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:6px;">شماره Local AS روتر:</label>
+            <input id="bgp-local-as-input" type="number" value="65001" min="1" max="4294967295" required style="width:100%; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;">
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button type="button" class="btn btn-outline" onclick="closeAddBgpPeerModal()">انصراف</button>
+          <button type="submit" class="btn btn-primary">⚡ ایجاد Plan همسایگی BGP</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Add Netwatch Host Watchdog (v1.9) -->
+  <div id="modal-add-netwatch" class="modal-overlay" style="display:none;">
+    <div class="glass-panel modal-card" style="max-width:500px; width:100%; padding:24px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 style="margin:0; color:#fff; display:flex; align-items:center; gap:8px;">
+          <span>⏱️</span> افزودن پروب نظارتی Netwatch
+        </h3>
+        <button type="button" class="btn btn-outline" style="padding:4px 8px;" onclick="closeAddNetwatchModal()">✕</button>
+      </div>
+
+      <form id="form-add-netwatch" onsubmit="event.preventDefault(); submitAddNetwatch();">
+        <div style="margin-bottom:14px;">
+          <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:6px;">آدرس هاست هدف (Target IP / Domain):</label>
+          <input id="nw-host-input" type="text" placeholder="مثال: 8.8.8.8 یا 1.1.1.1 یا 10.200.0.1" required style="width:100%; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:14px;">
+          <div>
+            <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:6px;">فاصله پایش (Interval):</label>
+            <select id="nw-interval-select" style="width:100%; padding:10px; background:#1e293b; border:1px solid var(--glass-border); border-radius:8px; color:#fff;">
+              <option value="5s">هر ۵ ثانیه</option>
+              <option value="10s" selected>هر ۱۰ ثانیه</option>
+              <option value="30s">هر ۳۰ ثانیه</option>
+              <option value="1m">هر ۱ دقیقه</option>
+            </select>
+          </div>
+          <div>
+            <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:6px;">مهلت پاسخ (Timeout):</label>
+            <select id="nw-timeout-select" style="width:100%; padding:10px; background:#1e293b; border:1px solid var(--glass-border); border-radius:8px; color:#fff;">
+              <option value="500ms">۵۰۰ میلی‌ثانیه</option>
+              <option value="1000ms" selected>۱۰۰۰ میلی‌ثانیه (۱ ثانیه)</option>
+              <option value="2000ms">۲۰۰۰ میلی‌ثانیه (۲ ثانیه)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="margin-bottom:16px;">
+          <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:6px;">توضیحات و کاربرد پروب:</label>
+          <input id="nw-comment-input" type="text" placeholder="مثلاً: پایش لینک اصلی شاتل یا سرور اتوماسیون" style="width:100%; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;">
+        </div>
+
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:18px; background:rgba(255,255,255,0.02); padding:10px; border-radius:8px;">
+          <input type="checkbox" id="nw-trigger-failover" style="accent-color:var(--primary); width:16px; height:16px; cursor:pointer;">
+          <label for="nw-trigger-failover" style="font-size:0.85rem; color:#fff; cursor:pointer;">
+            اجرای واکنش خودکار فیل‌اور روتینگ (تغییر Distance به خط پشتیبان در زمان قطعی)
+          </label>
+        </div>
+
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+          <button type="button" class="btn btn-outline" onclick="closeAddNetwatchModal()">انصراف</button>
+          <button type="submit" class="btn btn-primary">⚡ ایجاد Plan پایشگر</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Generate Hotspot Guest Vouchers (v1.9) -->
+  <div id="modal-create-hotspot-voucher" class="modal-overlay" style="display:none;">
+    <div class="glass-panel modal-card" style="max-width:540px; width:100%; padding:24px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h3 style="margin:0; color:#fff; display:flex; align-items:center; gap:8px;">
+          <span>🎟️</span> تولید ووچرهای مهمان هات‌اسپات (Guest Vouchers)
+        </h3>
+        <button type="button" class="btn btn-outline" style="padding:4px 8px;" onclick="closeCreateVoucherModal()">✕</button>
+      </div>
+
+      <div id="voucher-modal-step1">
+        <form id="form-create-voucher" onsubmit="event.preventDefault(); submitCreateHotspotVouchers();">
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:14px;">
+            <div>
+              <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:6px;">پیشوند نام کاربری:</label>
+              <input id="voucher-prefix-input" type="text" value="GUEST" required style="width:100%; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff; text-transform:uppercase;">
+            </div>
+            <div>
+              <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:6px;">تعداد کارت‌ها (ووچر):</label>
+              <select id="voucher-count-select" style="width:100%; padding:10px; background:#1e293b; border:1px solid var(--glass-border); border-radius:8px; color:#fff;">
+                <option value="3">۳ کارت</option>
+                <option value="5" selected>۵ کارت</option>
+                <option value="10">۱۰ کارت</option>
+                <option value="20">۲۰ کارت</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:18px;">
+            <div>
+              <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:6px;">سقف زمانی اعتبار:</label>
+              <select id="voucher-time-select" style="width:100%; padding:10px; background:#1e293b; border:1px solid var(--glass-border); border-radius:8px; color:#fff;">
+                <option value="1h">۱ ساعت</option>
+                <option value="2h" selected>۲ ساعت</option>
+                <option value="6h">۶ ساعت</option>
+                <option value="1d">۱ روز (۲۴ ساعت)</option>
+                <option value="7d">۷ روز</option>
+              </select>
+            </div>
+            <div>
+              <label style="display:block; font-size:0.85rem; color:var(--text-muted); margin-bottom:6px;">سقف حجم مجاز ترافیک:</label>
+              <select id="voucher-data-select" style="width:100%; padding:10px; background:#1e293b; border:1px solid var(--glass-border); border-radius:8px; color:#fff;">
+                <option value="500">۵۰۰ مگابایت</option>
+                <option value="1024" selected>۱ گیگابایت (1024 MB)</option>
+                <option value="2048">۲ گیگابایت (2048 MB)</option>
+                <option value="5120">۵ گیگابایت (5120 MB)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style="display:flex; justify-content:flex-end; gap:10px;">
+            <button type="button" class="btn btn-outline" onclick="closeCreateVoucherModal()">انصراف</button>
+            <button type="submit" class="btn btn-primary">⚡ صدور دسته‌ای ووچرها</button>
+          </div>
+        </form>
+      </div>
+
+      <div id="voucher-modal-step2" style="display:none;">
+        <div style="background:rgba(16,185,129,0.1); border:1px solid rgba(16,185,129,0.3); border-radius:8px; padding:12px; margin-bottom:14px; color:#10b981; font-size:0.85rem;">
+          ✓ ووچرهای مهمان با موفقیت تولید شدند! اطلاعات زیر را در اختیار مهمانان قرار دهید:
+        </div>
+
+        <div id="voucher-cards-container" style="display:grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap:10px; max-height:220px; overflow-y:auto; margin-bottom:16px;">
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+          <button type="button" class="btn btn-outline" onclick="copyAllVouchersText()" id="btn-copy-vouchers">
+            📋 کپی متن تمام کارت‌ها
+          </button>
+          <button type="button" class="btn btn-primary" onclick="proceedHotspotVoucherPlan()">
+            ⚡ ثبت رسمی در روتر (Apply Plan)
           </button>
         </div>
       </div>

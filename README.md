@@ -1,59 +1,74 @@
-# 🚀 RouterPilot (نسخه ۱.۸)
+# 🚀 RouterPilot (نسخه ۱.۹)
 
 > **سیستم مدیریت متمرکز، تراکنشی و فوق‌هوشمند ناوگان روترهای شبکه (MikroTik ROS 7 / ROS 6، OpenWrt و Linux)**  
-> *با طراحی مدرن Dark Glassmorphism، ماتریس پورت‌ها و مدیریت VLAN سوییچ‌ها (Switch VLAN & Port Matrix)، تونل‌ها و تولید کلاینت WireGuard (VPN & Client Generator)، بازرس ارتقای RouterOS و فریمور سخت‌افزار (Firmware & RouterBOOT Upgrade Inspector)، سپر امنیتی و بازرس فایروال (Security Shield)، مدیریت صف‌ها و کنترل سرعت (Simple Queues Traffic Shaper)، ابزار زنده تراز آنتن رادیو وایرلس (Antenna Alignment Tuner)، بازرس بلادرنگ کلاینت‌ها (Connected Clients Inspector)، مانیتورینگ زنده ترافیک پورت‌ها (Live Torch)، تحلیل سشن‌های فعال (Top Talkers)، سرویس ابری MikroTik Cloud DDNS، زمان‌بندی خودکار پشتیبان‌گیری، کشف همسایه‌ها (MNDP Neighbors)، مذاکره پورت‌ها و کنسول امن CLI*
+> *با طراحی مدرن Dark Glassmorphism، روتینگ پویا BGP/OSPF، پایشگر خودکار قطعی لینک‌ها (Netwatch Host Watchdog)، مدیریت هات‌اسپات و صدور ووچرهای مهمان (Hotspot & Guest Vouchers)، ماتریس پورت‌ها و مدیریت VLAN سوییچ‌ها (Switch VLAN & Port Matrix)، تونل‌ها و تولید کلاینت WireGuard (VPN & Client Generator)، بازرس ارتقای RouterOS و فریمور سخت‌افزار (Firmware & RouterBOOT Upgrade Inspector)، سپر امنیتی و بازرس فایروال (Security Shield)، مدیریت صف‌ها و کنترل سرعت (Simple Queues Traffic Shaper)، ابزار زنده تراز آنتن رادیو وایرلس (Antenna Alignment Tuner)، بازرس بلادرنگ کلاینت‌ها (Connected Clients Inspector)، مانیتورینگ زنده ترافیک پورت‌ها (Live Torch)، تحلیل سشن‌های فعال (Top Talkers)، سرویس ابری MikroTik Cloud DDNS، زمان‌بندی خودکار پشتیبان‌گیری، کشف همسایه‌ها (MNDP Neighbors)، مذاکره پورت‌ها و کنسول امن CLI*
 
 📖 **[مشاهده کتابچه راهنمای کامل کاربری و هوش مصنوعی (User Manual)](docs/USER_MANUAL.md)**
 
 ---
 
-## 🌟 اصول بنیادین معماری (نسخه ۱.۸)
+## 🌟 اصول بنیادین معماری (نسخه ۱.۹)
 
-### ۱. ماتریس پورت‌ها و مدیریت VLAN سوییچ‌ها (Switch VLAN & Port Matrix):
+### ۱. روتینگ پویا و پروتکل‌های BGP و OSPF (Dynamic Routing Visualizer):
+- استعلام و پایش بلادرنگ سشن‌های BGP (`/routing/bgp/session`) و همسایگان OSPF (`/routing/ospf/neighbor`).
+- نمایش وضعیت برقراری ارتباط (Established / Active / Idle)، شمارنده پیشوندهای دریافتی (Received Prefixes)، شماره‌های AS راه دور و محلی و زمان پایداری.
+- مودال ۱-کلیکی ایجاد سشن BGP با تعیین شماره‌های AS و تایمرهای Hold-Time / Keepalive با رعایت حفاظت Zero-Lockout.
+
+### ۲. پایشگر خودکار قطعی لینک‌ها (Netwatch Host Watchdog & Failover Trigger):
+- پایش ثانیه‌ای و دقیق سرورها، هاست‌های بالادست و دکل‌ها با پروتکل ICMP (`/tool/netwatch`).
+- گزارش درصد پکت‌لاس، وضعیت آنلاین/آفلاین (UP/DOWN) و زمان آخرین تغییر وضعیت هر لینک.
+- تعریف ۱-کلیکی پروب نظارتی جدید با اسکریپت‌های واکنشی Up و Down خودکار جهت فیل‌اور مسیر اینترنت یا ثبت لاگ سیستمی بدون ریسک قطع مدیریت شبکه.
+
+### ۳. مدیریت هات‌اسپات و صدور ووچرهای مهمان (Hotspot & Guest Vouchers):
+- استعلام سرورهای هات‌اسپات، پایش سشن‌های فعال کاربران آنلاین (`/ip/hotspot/active`) و حجم مصرفی دانلود/آپلود.
+- تولیدکننده ۱-کلیکی دسته‌ای ووچرهای مهمان با پین‌های تصادفی، سقف اعتبار زمانی (۱ ساعت تا ۷ روز) و سقف حجم ترافیک (۵۰۰ مگابایت تا ۵ گیگابایت).
+- قابلیت کپی یکپارچه متن ووچرها و ثبت رسمی کاربران در جدول روتر (`/ip/hotspot/user`) با موتور تراکنشی Plan.
+
+### ۴. ماتریس پورت‌ها و مدیریت VLAN سوییچ‌ها (Switch VLAN & Port Matrix):
 - استعلام و نگاشت ماتریسی پورت‌های سوییچ و بریج (`/interface/bridge/port` و `/interface/bridge/vlan`).
 - نمایش تعاملی پورت‌های Access (تخصیص VLAN و PVID مجزا) و پورت‌های Trunk (انتقال VLANهای تگ‌دار چندگانه).
 - تشخیص وضعیت شتاب سخت‌افزاری (HW Offload) جهت سوییچینگ ترافیک در سطح تراشه سوییچ بدون درگیری پردازنده CPU.
 - مودال ۱-کلیکی پیکربندی نقش پورت با گارانتی Zero-Lockout و جلوگیری از قطع ارتباط مدیریت سوییچ.
 
-### ۲. تونل‌ها و مدیریت کلاینت‌های وایرگارد (WireGuard VPN & Client Peer Manager):
+### ۵. تونل‌ها و مدیریت کلاینت‌های وایرگارد (WireGuard VPN & Client Peer Manager):
 - استعلام زنده وضعیت اینترفیس‌های WireGuard و همتایان متصل (`/interface/wireguard/peers`).
 - پایش زنده آخرین زمان هندشیک (Handshake)، حجم تبادل دانلود/آپلود و وضعیت آنلاین بودن کلاینت‌ها.
 - سازنده ۱-کلیکی کلاینت وایرگارد (Client Peer Generator) با تولید خودکار جفت‌کلیدهای رمزنگاری Curve25519، فایل پیکربندی استاندارد `.conf` قابل‌دانلود و کپی، و ثبت مستقیم Peer در جدول روتر از طریق موتور تراکنشی Plan.
 
-### ۳. بازرس ارتقای RouterOS و فریمور سخت‌افزار (Firmware & RouterBOOT Upgrade Inspector):
+### ۶. بازرس ارتقای RouterOS و فریمور سخت‌افزار (Firmware & RouterBOOT Upgrade Inspector):
 - بررسی بلادرنگ آخرین نسخه‌های رسمی منتشرشده سیستم‌عامل RouterOS از سرورهای مرکزی میکروتیک (`/system/package/update`).
 - بررسی نسخه فریمور چیپ سخت‌افزار مادربورد (RouterBOOT Firmware) و آمادگی ارتقا (`/system/routerboard`).
 - ارزیابی ایمنی حافظه فلش (Storage Space Pre-flight Check) قبل از دانلود پکیج‌ها جهت جلوگیری از خرابی بوت.
 - تولید ۱-کلیکی Plan ارتقای سیستم‌عامل و ریبوت کنترل‌شده روتر.
 
-### ۴. سپر امنیتی و بازرس فایروال روتر (Security Shield & Firewall Auditor):
+### ۷. سپر امنیتی و بازرس فایروال روتر (Security Shield & Firewall Auditor):
 - استعلام و تحلیل بلادرنگ قوانین فایروال (`/ip/firewall/filter`)، جدول NAT (`/ip/firewall/nat`) و سرویس‌های روتر (`/ip/service`).
 - ارزیابی خودکار آسیب‌پذیری‌های بحرانی (Open DNS Resolver روی اینترنت، سرویس‌های ناامن Telnet/FTP، نبود رول ورودی Drop پیش‌فرض، فقدان دفاع در برابر Brute-force).
 - تخصیص امتیاز سلامت امنیتی (Security Score 0-100%) و دکمه ۱-کلیکی «🛡️ ایمن‌سازی ۱-کلیکه روتر (Harden)» با گارانتی Zero-Lockout.
 
-### ۵. مدیریت صف‌ها و کنترل پهنای باند کلاینت‌ها (Simple Queues & Traffic Shaper):
+### ۸. مدیریت صف‌ها و کنترل پهنای باند کلاینت‌ها (Simple Queues & Traffic Shaper):
 - استعلام زنده و پایش صف‌های پهنای باند روتر (`/queue/simple`).
 - مشاهده سقف دانلود و آپلود، بیت‌ریت لحظه‌ای مصرف، ترافیک تجمیعی و بسته‌های مسدود/دراپ شده (Dropped Packets).
 - تعریف ۱-کلیکی محدودیت پهنای باند جدید برای هر IP یا ساب‌نت از طریق مودال شیشه‌ای و حذف ایمن با گام‌های Rollback.
 
-### ۶. ابزار زنده تراز آنتن و سیگنال رادیو وایرلس (PTP Antenna Alignment Tuner):
+### ۹. ابزار زنده تراز آنتن و سیگنال رادیو وایرلس (PTP Antenna Alignment Tuner):
 - استعلام بلادرنگ تله‌متری جدول رادیویی (`/interface/wireless/registration-table`) برای رادیوهای LHG، SXT، DynaDish و NetMetal.
 - پایش توان سیگنال RSSI (بر حسب dBm)، کیفیت کانال و پکت‌های سالم CCQ (Tx/Rx %)، و نسبت سیگنال به نویز (SNR dB).
 - محاسبه خودکار امتیاز تراز آنتن (0-100%) با گیج تصویری و توصیه‌های هوشمند برای تنظیم بهینه دکل.
 
-### ۷. بازرس کلاینت‌های متصل و اجاره‌های DHCP (Connected Clients Inspector):
+### ۱۰. بازرس کلاینت‌های متصل و اجاره‌های DHCP (Connected Clients Inspector):
 - استعلام و تجمیع بلادرنگ دستگاه‌های متصل از دو منبع سرور DHCP (`/ip/dhcp-server/lease`) و جدول ARP (`/ip/arp`).
 - فیلتر و جستجوی لحظه‌ای بر اساس نام دستگاه، آدرس IP و مک‌آدرس، با دکمه‌های رزرو ثابت (Make Static) و مسدودسازی دسترسی (Block Client).
 
-### ۸. مانیتورینگ زنده پهنای باند و تورچ اینترفیس‌ها (Live Bandwidth Torch):
+### ۱۱. مانیتورینگ زنده پهنای باند و تورچ اینترفیس‌ها (Live Bandwidth Torch):
 - پایش زنده بیت‌ریت دانلود (RX) و آپلود (TX) به مگابیت بر ثانیه برای تک‌تک پورت‌های روتر در بازه‌های ۳ ثانیه‌ای.
 - تحلیل ۱۰ کلاینت با بیشترین مصرف سشن (Top Talkers) از جدول `/ip/firewall/connection`.
 
-### ۹. سرویس ابری میکروتیک و زمان‌بندی خودکار بکاپ (MikroTik Cloud DDNS & Scheduler):
+### ۱۲. سرویس ابری میکروتیک و زمان‌بندی خودکار بکاپ (MikroTik Cloud DDNS & Scheduler):
 - دریافت و تنظیم دامنه دینامیک جهانی `*.sn.mynetname.net` بر روی سرورهای ابری MikroTik.
 - زمان‌بندی خودکار در RouterOS Scheduler برای اخذ نسخه پشتیبان دوبل متنی (`.rsc`) و باینری (`.backup`) در ساعت ۰۳:۰۰ بامداد.
 
-### ۱۰. کشف همسایه‌ها در شبکه لایه ۲ (MNDP Discovery مشابه Winbox):
+### ۱۳. کشف همسایه‌ها در شبکه لایه ۲ (MNDP Discovery مشابه Winbox):
 - کشف خودکار تمامی تجهیزات میکروتیک در شبکه محلی روی پورت برادکست `UDP 5678` حتی بدون تنظیم آدرس IP یا تفاوت ساب‌نت.
 
 ---
@@ -89,7 +104,7 @@
 
 پوشه اختصاصی **`reference-device/`** شامل:
 1. **`reference-device/baseline/`**: اسکریپت‌های پایه کانفیگ (`01_interfaces`, `02_ip`, `03_routes`, `04_firewall`, `05_l2tp`, `06_container`).
-2. **`reference-device/tests/test_suite.py`**: آزمون‌گر خودکار ۱۷ مرحله‌ای برای تست پورت‌های مدیریت، قوانین عدم قفل‌شدگی (Zero-Lockout)، ماتریس VLAN سوییچ، کلاینت‌های وایرگارد، ارتقای فریمور RouterBOOT، پایش پینگ، سلامت فیل‌اور و کانتینر.
+2. **`reference-device/tests/test_suite.py`**: آزمون‌گر خودکار ۲۰ مرحله‌ای برای تست پورت‌های مدیریت، قوانین عدم قفل‌شدگی (Zero-Lockout)، ماتریس VLAN سوییچ، کلاینت‌های وایرگارد، روتینگ داینامیک BGP/OSPF، پایشگر Netwatch، هات‌اسپات و ووچرهای مهمان، ارتقای فریمور RouterBOOT، پایش پینگ، سلامت فیل‌اور و کانتینر.
 3. **`reference-device/REFERENCE_DEVICE.md`**: مستند جامع معماری، توپولوژی پورت‌ها، قوانین نام‌گذاری و مشخصات سخت‌افزاری روتر مرجع.
 
 ---

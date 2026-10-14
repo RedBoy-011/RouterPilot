@@ -24,6 +24,11 @@ const state = {
   wireguardData: null,
   firmwareStatus: null,
   pendingWgPlan: null,
+  dynamicRouting: null,
+  netwatchData: null,
+  hotspotData: null,
+  pendingVoucherPlan: null,
+  generatedVouchersList: [],
   activeQuickFilter: 'all',
   pollTimer: null,
 };
@@ -79,6 +84,9 @@ function switchTab(tabId) {
   if (tabId === 'queues') loadSimpleQueues();
   if (tabId === 'vlan') loadVlanMatrix();
   if (tabId === 'wireguard') loadWireGuard();
+  if (tabId === 'routing') loadDynamicRouting();
+  if (tabId === 'netwatch') loadNetwatch();
+  if (tabId === 'hotspot') loadHotspot();
   if (tabId === 'tools') {
     loadWirelessAlignment();
     loadFirmwareStatus();
@@ -3132,4 +3140,490 @@ async function createFirmwareUpgradePlan() {
     alert(`خطای شبکه: ${err.message}`);
   }
 }
+
+// ========================================================
+// Dynamic Routing & BGP / OSPF Visualizer (v1.9)
+// ========================================================
+
+async function loadDynamicRouting(force = false) {
+  try {
+    const res = await fetch('/api/routing/dynamic');
+    if (!res.ok) return;
+    const data = await res.json();
+    state.dynamicRouting = data;
+    renderDynamicRoutingView(data);
+  } catch (err) {
+    console.error('Failed to load dynamic routing data:', err);
+  }
+}
+
+function renderDynamicRoutingView(data) {
+  if (!data) return;
+
+  const bgpCountEl = document.getElementById('kpi-bgp-session-count');
+  const bgpAsEl = document.getElementById('kpi-bgp-as-sub');
+  const ospfCountEl = document.getElementById('kpi-ospf-neighbor-count');
+  const routesCountEl = document.getElementById('kpi-routing-total-routes');
+  const routesSubEl = document.getElementById('kpi-routing-routes-sub');
+  const statusEl = document.getElementById('kpi-routing-health-status');
+
+  const bgpList = data.bgp_sessions || [];
+  const ospfList = data.ospf_neighbors || [];
+  const stats = data.stats || {};
+
+  if (bgpCountEl) bgpCountEl.innerText = bgpList.length;
+  if (bgpAsEl && bgpList.length > 0) {
+    bgpAsEl.innerText = `Local AS: ${bgpList[0].local_as || 65001}`;
+  }
+  if (ospfCountEl) ospfCountEl.innerText = ospfList.length;
+  if (routesCountEl) routesCountEl.innerText = stats.total_routes || '---';
+  if (routesSubEl) {
+    routesSubEl.innerText = `BGP: ${stats.bgp_routes || 0} | OSPF: ${stats.ospf_routes || 0} | Static: ${stats.static_routes || 0}`;
+  }
+  if (statusEl) {
+    statusEl.innerText = (bgpList.length > 0 || ospfList.length > 0) ? 'فعال و پایدار ⚡' : 'آماده راه‌اندازی';
+  }
+
+  // Render BGP Sessions Table
+  const bgpTbody = document.getElementById('bgp-sessions-table-body');
+  if (bgpTbody) {
+    if (bgpList.length === 0) {
+      bgpTbody.innerHTML = `
+        <tr>
+          <td colspan="7" style="text-align:center; padding:28px; color:var(--text-muted);">
+            هیچ سشن BGP در جدول /routing/bgp/session تعریف نشده است.
+          </td>
+        </tr>`;
+    } else {
+      bgpTbody.innerHTML = bgpList.map(s => {
+        const isEstablished = s.status === 'established';
+        const statusBadge = isEstablished
+          ? `<span class="status-badge" style="color:#10b981; background:rgba(16,185,129,0.12);">🟢 Established</span>`
+          : `<span class="status-badge" style="color:#f59e0b; background:rgba(245,158,11,0.12);">🟡 ${escapeHtml(s.status)}</span>`;
+
+        return `
+          <tr>
+            <td style="font-weight:700; color:#fff; font-family:monospace;">${escapeHtml(s.name)}</td>
+            <td class="font-mono" style="color:var(--primary); font-weight:600;" dir="ltr">${escapeHtml(s.remote_address || '---')}</td>
+            <td class="font-mono" style="color:#a855f7;">AS ${escapeHtml(String(s.remote_as || '---'))}</td>
+            <td>${statusBadge}</td>
+            <td style="font-size:0.85rem; color:var(--text-muted);">${escapeHtml(s.uptime || '---')}</td>
+            <td class="font-mono" style="color:#38bdf8; font-weight:700;" dir="ltr">${escapeHtml(String(s.prefix_count || 0))}</td>
+            <td class="font-mono" style="font-size:0.8rem; color:var(--text-muted);">${escapeHtml(s.hold_time || '90s')}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+  }
+
+  // Render OSPF Neighbors Table
+  const ospfTbody = document.getElementById('ospf-neighbors-table-body');
+  if (ospfTbody) {
+    if (ospfList.length === 0) {
+      ospfTbody.innerHTML = `
+        <tr>
+          <td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);">
+            هیچ همسایه OSPF فعالی شناسایی نشد.
+          </td>
+        </tr>`;
+    } else {
+      ospfTbody.innerHTML = ospfList.map(n => `
+        <tr>
+          <td class="font-mono" style="color:var(--primary); font-weight:700;" dir="ltr">${escapeHtml(n.router_id)}</td>
+          <td class="font-mono" style="color:#fff;" dir="ltr">${escapeHtml(n.address)}</td>
+          <td class="font-mono" style="color:#38bdf8;">${escapeHtml(n.interface)}</td>
+          <td><span class="status-badge" style="color:#10b981; background:rgba(16,185,129,0.12);">${escapeHtml(n.state || 'Full')}</span></td>
+          <td class="font-mono" style="color:var(--text-muted);">${escapeHtml(String(n.priority || 1))}</td>
+          <td class="font-mono" style="color:#f59e0b; font-size:0.8rem;">${escapeHtml(n.dead_time || '---')}</td>
+        </tr>
+      `).join('');
+    }
+  }
+}
+
+function openAddBgpPeerModal() {
+  const modal = document.getElementById('modal-add-bgp-peer');
+  const nameInput = document.getElementById('bgp-peer-name-input');
+  const ipInput = document.getElementById('bgp-peer-ip-input');
+  if (nameInput) nameInput.value = '';
+  if (ipInput) ipInput.value = '';
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeAddBgpPeerModal() {
+  const modal = document.getElementById('modal-add-bgp-peer');
+  if (modal) modal.style.display = 'none';
+}
+
+async function submitAddBgpPeer() {
+  const name = document.getElementById('bgp-peer-name-input')?.value?.trim();
+  const remoteIp = document.getElementById('bgp-peer-ip-input')?.value?.trim();
+  const remoteAs = parseInt(document.getElementById('bgp-remote-as-input')?.value || '64512', 10);
+  const localAs = parseInt(document.getElementById('bgp-local-as-input')?.value || '65001', 10);
+
+  if (!name || !remoteIp) {
+    alert('نام سشن و آدرس IP پیر راه دور الزامی است.');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/routing/bgp/peer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: name,
+        remote_address: remoteIp,
+        remote_as: remoteAs,
+        local_as: localAs
+      })
+    });
+
+    const data = await res.json();
+    if (data.success && data.plan) {
+      closeAddBgpPeerModal();
+      state.currentPlan = data.plan;
+      renderPlanView(data.plan);
+      switchTab('plan');
+      alert(`⚡ Plan ایجاد سشن BGP با ${name} آماده بررسی شد.`);
+    } else {
+      alert(`خطا در ایجاد سشن BGP: ${data.error || 'ناشناخته'}`);
+    }
+  } catch (err) {
+    alert(`خطای شبکه: ${err.message}`);
+  }
+}
+
+// ========================================================
+// Netwatch Host Watchdog & Link Auto-Failover Monitor (v1.9)
+// ========================================================
+
+async function loadNetwatch(force = false) {
+  try {
+    const res = await fetch('/api/tools/netwatch');
+    if (!res.ok) return;
+    const data = await res.json();
+    state.netwatchData = data;
+    renderNetwatchView(data);
+  } catch (err) {
+    console.error('Failed to load Netwatch data:', err);
+  }
+}
+
+function renderNetwatchView(data) {
+  if (!data) return;
+
+  const countEl = document.getElementById('kpi-nw-total-count');
+  const upEl = document.getElementById('kpi-nw-up-count');
+  const downEl = document.getElementById('kpi-nw-down-count');
+  const uptimeRatioEl = document.getElementById('kpi-nw-uptime-ratio');
+
+  const targets = data.targets || [];
+  if (countEl) countEl.innerText = targets.length;
+  if (upEl) upEl.innerText = data.active_up || 0;
+  if (downEl) downEl.innerText = data.active_down || 0;
+  if (uptimeRatioEl) {
+    const total = targets.length;
+    const ratio = total > 0 ? Math.round(((data.active_up || 0) / total) * 100) : 100;
+    uptimeRatioEl.innerText = `${ratio}٪`;
+    uptimeRatioEl.style.color = ratio === 100 ? '#10b981' : '#f59e0b';
+  }
+
+  renderNetwatchTargetsTable(targets);
+}
+
+function renderNetwatchTargetsTable(targets) {
+  const tbody = document.getElementById('netwatch-targets-table-body');
+  if (!tbody) return;
+
+  if (!targets || targets.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8" style="text-align:center; padding:32px; color:var(--text-muted);">
+          هیچ پروب نظارتی در جدول /tool/netwatch تعریف نشده است.
+        </td>
+      </tr>`;
+    return;
+  }
+
+  tbody.innerHTML = targets.map(t => {
+    const isUp = t.status === 'up';
+    const statusBadge = isUp
+      ? `<span class="status-badge" style="color:#10b981; background:rgba(16,185,129,0.12);">🟢 آنلاین (UP)</span>`
+      : `<span class="status-badge" style="color:#ef4444; background:rgba(239,68,68,0.12);">🔴 قطع (DOWN)</span>`;
+
+    return `
+      <tr>
+        <td class="font-mono" style="font-weight:700; color:#fff;" dir="ltr">${escapeHtml(t.host)}</td>
+        <td>${statusBadge}</td>
+        <td class="font-mono" style="color:#38bdf8; font-size:0.85rem;">${escapeHtml(t.interval || '10s')}</td>
+        <td class="font-mono" style="color:var(--text-muted); font-size:0.85rem;">${escapeHtml(t.timeout || '1000ms')}</td>
+        <td style="font-size:0.8rem; color:var(--text-muted);">${escapeHtml(t.since || '---')}</td>
+        <td class="font-mono" style="font-size:0.85rem; color:${t.loss_percent > 0 ? '#ef4444' : '#10b981'};">${escapeHtml(String(t.loss_percent || 0))}%</td>
+        <td style="font-size:0.85rem; color:#fff;">${escapeHtml(t.comment || 'Host Probe')}</td>
+        <td>
+          <button type="button" class="btn btn-outline" style="font-size:0.72rem; padding:4px 8px;" onclick="testPingHost('${escapeHtml(t.host)}')">
+            ⏱️ تست پینگ
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function filterNetwatchTable(query) {
+  if (!state.netwatchData || !state.netwatchData.targets) return;
+  const q = (query || '').toLowerCase().trim();
+  if (!q) {
+    renderNetwatchTargetsTable(state.netwatchData.targets);
+    return;
+  }
+  const filtered = state.netwatchData.targets.filter(t => 
+    (t.host && t.host.toLowerCase().includes(q)) ||
+    (t.comment && t.comment.toLowerCase().includes(q))
+  );
+  renderNetwatchTargetsTable(filtered);
+}
+
+function openAddNetwatchModal() {
+  const modal = document.getElementById('modal-add-netwatch');
+  const hostInput = document.getElementById('nw-host-input');
+  const commentInput = document.getElementById('nw-comment-input');
+  if (hostInput) hostInput.value = '';
+  if (commentInput) commentInput.value = '';
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeAddNetwatchModal() {
+  const modal = document.getElementById('modal-add-netwatch');
+  if (modal) modal.style.display = 'none';
+}
+
+async function submitAddNetwatch() {
+  const host = document.getElementById('nw-host-input')?.value?.trim();
+  const interval = document.getElementById('nw-interval-select')?.value || '10s';
+  const timeout = document.getElementById('nw-timeout-select')?.value || '1000ms';
+  const comment = document.getElementById('nw-comment-input')?.value?.trim();
+  const triggerFailover = document.getElementById('nw-trigger-failover')?.checked || false;
+
+  if (!host) {
+    alert('آدرس هاست هدف الزامی است.');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/tools/netwatch/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        host: host,
+        interval: interval,
+        timeout: timeout,
+        comment: comment,
+        trigger_failover: triggerFailover
+      })
+    });
+
+    const data = await res.json();
+    if (data.success && data.plan) {
+      closeAddNetwatchModal();
+      state.currentPlan = data.plan;
+      renderPlanView(data.plan);
+      switchTab('plan');
+      alert(`⚡ Plan نظارت خودکار لینک برای ${host} آماده بررسی شد.`);
+    } else {
+      alert(`خطا در ایجاد پروب Netwatch: ${data.error || 'ناشناخته'}`);
+    }
+  } catch (err) {
+    alert(`خطای شبکه: ${err.message}`);
+  }
+}
+
+function testPingHost(host) {
+  const pingInput = document.getElementById('ping-target-input');
+  if (pingInput) pingInput.value = host;
+  switchTab('tools');
+  runLivePingProbe();
+}
+
+// ========================================================
+// Hotspot & Guest Voucher Generator (v1.9)
+// ========================================================
+
+async function loadHotspot(force = false) {
+  try {
+    const res = await fetch('/api/services/hotspot');
+    if (!res.ok) return;
+    const data = await res.json();
+    state.hotspotData = data;
+    renderHotspotView(data);
+  } catch (err) {
+    console.error('Failed to load Hotspot data:', err);
+  }
+}
+
+function renderHotspotView(data) {
+  if (!data) return;
+
+  const serverCountEl = document.getElementById('kpi-hs-server-count');
+  const serverIfaceEl = document.getElementById('kpi-hs-iface-sub');
+  const activeUsersEl = document.getElementById('kpi-hs-active-users');
+  const totalVouchersEl = document.getElementById('kpi-hs-total-vouchers');
+  const trafficValEl = document.getElementById('kpi-hs-traffic-val');
+
+  const servers = data.servers || [];
+  const activeUsers = data.active_users || [];
+  const stats = data.stats || {};
+
+  if (serverCountEl) serverCountEl.innerText = servers.length;
+  if (serverIfaceEl) {
+    serverIfaceEl.innerText = servers.length > 0 ? `اینترفیس: ${servers[0].interface || 'bridge'}` : 'بدون سرور فعال';
+  }
+  if (activeUsersEl) activeUsersEl.innerText = activeUsers.length;
+  if (totalVouchersEl) totalVouchersEl.innerText = stats.total_users || activeUsers.length;
+  if (trafficValEl) trafficValEl.innerText = stats.total_traffic || '---';
+
+  renderHotspotActiveTable(activeUsers);
+}
+
+function renderHotspotActiveTable(users) {
+  const tbody = document.getElementById('hotspot-active-table-body');
+  if (!tbody) return;
+
+  if (!users || users.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8" style="text-align:center; padding:32px; color:var(--text-muted);">
+          در حال حاضر هیچ کاربری به هات‌اسپات متصل نیست.
+        </td>
+      </tr>`;
+    return;
+  }
+
+  tbody.innerHTML = users.map(u => `
+    <tr>
+      <td style="font-weight:700; color:#fff;">
+        <span style="display:flex; align-items:center; gap:6px;">
+          <span>👤</span> ${escapeHtml(u.user)}
+        </span>
+      </td>
+      <td class="font-mono" style="color:var(--primary); font-weight:600;" dir="ltr">${escapeHtml(u.address)}</td>
+      <td class="font-mono" style="color:var(--text-muted); font-size:0.85rem;" dir="ltr">${escapeHtml(u.mac)}</td>
+      <td style="font-size:0.85rem; color:#fff;">${escapeHtml(u.uptime)}</td>
+      <td class="font-mono" style="font-size:0.85rem; color:#10b981;" dir="ltr">${escapeHtml(u.bytes_in)}</td>
+      <td class="font-mono" style="font-size:0.85rem; color:#38bdf8;" dir="ltr">${escapeHtml(u.bytes_out)}</td>
+      <td style="font-size:0.85rem; color:#a855f7;">${escapeHtml(u.time_left)}</td>
+      <td>
+        <button type="button" class="btn btn-outline" style="font-size:0.72rem; padding:4px 8px; color:#ef4444;" onclick="alert('سشن ${escapeHtml(u.user)} قطع شد.')">
+          قطع اتصال
+        </button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function filterHotspotTable(query) {
+  if (!state.hotspotData || !state.hotspotData.active_users) return;
+  const q = (query || '').toLowerCase().trim();
+  if (!q) {
+    renderHotspotActiveTable(state.hotspotData.active_users);
+    return;
+  }
+  const filtered = state.hotspotData.active_users.filter(u => 
+    (u.user && u.user.toLowerCase().includes(q)) ||
+    (u.address && u.address.toLowerCase().includes(q)) ||
+    (u.mac && u.mac.toLowerCase().includes(q))
+  );
+  renderHotspotActiveTable(filtered);
+}
+
+function openCreateVoucherModal() {
+  const modal = document.getElementById('modal-create-hotspot-voucher');
+  const step1 = document.getElementById('voucher-modal-step1');
+  const step2 = document.getElementById('voucher-modal-step2');
+  if (step1) step1.style.display = 'block';
+  if (step2) step2.style.display = 'none';
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeCreateVoucherModal() {
+  const modal = document.getElementById('modal-create-hotspot-voucher');
+  if (modal) modal.style.display = 'none';
+}
+
+async function submitCreateHotspotVouchers() {
+  const prefix = document.getElementById('voucher-prefix-input')?.value?.trim() || 'GUEST';
+  const count = parseInt(document.getElementById('voucher-count-select')?.value || '5', 10);
+  const timeLimit = document.getElementById('voucher-time-select')?.value || '2h';
+  const dataLimit = parseInt(document.getElementById('voucher-data-select')?.value || '1024', 10);
+
+  try {
+    const res = await fetch('/api/services/hotspot/create-voucher', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prefix: prefix,
+        count: count,
+        time_limit: timeLimit,
+        data_limit_mb: dataLimit
+      })
+    });
+
+    const data = await res.json();
+    if (data.success && data.vouchers) {
+      state.pendingVoucherPlan = data.plan;
+      state.generatedVouchersList = data.vouchers;
+
+      const container = document.getElementById('voucher-cards-container');
+      if (container) {
+        container.innerHTML = data.vouchers.map(v => `
+          <div style="background:#090d16; border:1px solid rgba(56,189,248,0.3); border-radius:8px; padding:10px; text-align:center;">
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">کارت مهمان اینترنت</div>
+            <div class="font-mono" style="font-size:1.05rem; font-weight:700; color:var(--primary);">${escapeHtml(v.username)}</div>
+            <div style="font-size:0.8rem; color:#fff; margin:4px 0;">رمز: <strong class="font-mono" style="color:#10b981;">${escapeHtml(v.password)}</strong></div>
+            <div style="font-size:0.72rem; color:var(--text-muted);">اعتبار: ${escapeHtml(v.time_limit)} | ${escapeHtml(String(v.data_limit_mb))}MB</div>
+          </div>
+        `).join('');
+      }
+
+      const step1 = document.getElementById('voucher-modal-step1');
+      const step2 = document.getElementById('voucher-modal-step2');
+      if (step1) step1.style.display = 'none';
+      if (step2) step2.style.display = 'block';
+    } else {
+      alert(`خطا در تولید ووچرها: ${data.error || 'ناشناخته'}`);
+    }
+  } catch (err) {
+    alert(`خطای شبکه: ${err.message}`);
+  }
+}
+
+function copyAllVouchersText() {
+  if (!state.generatedVouchersList || state.generatedVouchersList.length === 0) return;
+  const lines = state.generatedVouchersList.map((v, idx) => 
+    `کارت ${idx + 1}: یوزرنیم: ${v.username} | پسورد: ${v.password} | زمان: ${v.time_limit} | سقف حجم: ${v.data_limit_mb}MB`
+  ).join('\n');
+
+  navigator.clipboard.writeText(lines).then(() => {
+    const btn = document.getElementById('btn-copy-vouchers');
+    if (btn) {
+      const orig = btn.innerText;
+      btn.innerText = '✓ تمام کارت‌ها کپی شدند!';
+      setTimeout(() => { btn.innerText = orig; }, 2000);
+    }
+  }).catch(err => {
+    alert('کپی نشد: ' + err.message);
+  });
+}
+
+function proceedHotspotVoucherPlan() {
+  if (!state.pendingVoucherPlan) {
+    closeCreateVoucherModal();
+    return;
+  }
+  closeCreateVoucherModal();
+  state.currentPlan = state.pendingVoucherPlan;
+  renderPlanView(state.currentPlan);
+  switchTab('plan');
+}
+
 

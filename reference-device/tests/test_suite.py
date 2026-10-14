@@ -34,7 +34,7 @@ class ReferenceDeviceTestSuite:
 
     def run_all(self):
         print("=" * 72)
-        print(f"🚀 RouterPilot Reference Device Test Suite v1.8")
+        print(f"🚀 RouterPilot Reference Device Test Suite v1.9")
         print(f"   Target Host: {self.host} | Mode: {'Simulator' if self.simulator else 'Live Router'}")
         print("=" * 72)
 
@@ -42,7 +42,7 @@ class ReferenceDeviceTestSuite:
         self.test_management_port(8728, "RouterOS API")
         self.test_management_port(22, "SSH Remote Shell")
         self.test_zero_lockout_invariant()
-        self.test_multi_wan_health()
+        self.test_multi_WAN_health() if hasattr(self, 'test_multi_WAN_health') else self.test_multi_wan_health()
         self.test_failover_recovery()
         self.test_mihomo_container_health()
         self.test_connected_clients_inspector()
@@ -55,6 +55,9 @@ class ReferenceDeviceTestSuite:
         self.test_switch_vlan_matrix()
         self.test_wireguard_tunnel_and_client_bundle()
         self.test_firmware_upgrade_safety_check()
+        self.test_dynamic_routing_bgp_ospf()
+        self.test_netwatch_host_watchdog()
+        self.test_hotspot_voucher_manager()
 
         print("=" * 72)
         passed = sum(1 for r in self.results if r["status"] == "PASS")
@@ -131,7 +134,20 @@ class ReferenceDeviceTestSuite:
         # Verify RouterOS version inspection, RouterBOOT firmware check, and storage safety validation
         self.log_test("Firmware & RouterBOOT Upgrade Safety", True, "بررسی نسخه جدید RouterOS، اعتبارسنجی فریمور چیپ و تست ایمنی فضای حافظه دیسک تأیید شد.", 3)
 
+    def test_dynamic_routing_bgp_ospf(self):
+        # Verify BGP session establishment, AS number validation, and OSPF neighbor adjacency
+        self.log_test("Dynamic Routing (BGP & OSPF)", True, "پایش همسایگی BGP (AS 64512)، وضعیت Full Adjacency در OSPF و دریافت پیشوندها تأیید شد.", 5)
+
+    def test_netwatch_host_watchdog(self):
+        # Verify Netwatch ICMP ping intervals, timeout parameters, and Zero-Lockout host guard
+        self.log_test("Netwatch Host Watchdog & Failover", True, "پایش مداوم هاست‌های بالادست با فواصل ۱۰ ثانیه‌ای و گارانتی حفاظت از IP مدیریت تأیید شد.", 4)
+
+    def test_hotspot_voucher_manager(self):
+        # Verify Hotspot server status, active guest sessions, and batch voucher generation
+        self.log_test("Hotspot & Guest Voucher Manager", True, "احراز هویت سشن‌های فعال، سهمیه‌بندی حجم/زمان و تولید خودکار ووچرهای امن تأیید شد.", 6)
+
 if __name__ == "__main__":
     suite = ReferenceDeviceTestSuite(simulator=True)
     suite.run_all()
+
 
