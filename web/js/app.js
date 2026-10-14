@@ -13,6 +13,9 @@ const state = {
   wans: [],
   profiles: [],
   neighbors: [],
+  clients: [],
+  liveTraffic: null,
+  cloudInfo: null,
   activeQuickFilter: 'all',
   pollTimer: null,
 };
@@ -56,6 +59,11 @@ function switchTab(tabId) {
   if (tabId === 'neighbors') loadNeighbors();
   if (tabId === 'discovery') loadDiscoveryData();
   if (tabId === 'quick-config') loadQuickConfigProfiles();
+  if (tabId === 'clients') {
+    loadConnectedClients();
+    pollLiveTraffic();
+    loadTopTalkers();
+  }
   if (tabId === 'audit') loadAuditLogs();
 }
 
@@ -69,6 +77,11 @@ function initEventListeners() {
   document.getElementById('global-search')?.addEventListener('input', (e) => {
     const query = e.target.value.toLowerCase().trim();
     filterContentBySearch(query);
+  });
+
+  // Clients Table Search Filter
+  document.getElementById('input-search-clients')?.addEventListener('input', (e) => {
+    filterClientsBySearch(e.target.value.toLowerCase().trim());
   });
 
   // Theme Toggle
@@ -185,16 +198,23 @@ async function loadDiscoveryData() {
 }
 
 function startHealthPolling() {
+  // Initial immediate fetch
+  pollLiveTraffic();
+
   state.pollTimer = setInterval(async () => {
     try {
       const res = await fetch('/api/wan/health');
-      if (!res.ok) return;
-      const report = await res.json();
-      updateDashboardTelemetry(report);
+      if (res.ok) {
+        const report = await res.json();
+        updateDashboardTelemetry(report);
+      }
     } catch (err) {
       // Ignore network polling errors
     }
-  }, 3500);
+
+    // Live Bandwidth & Interface Torch Polling
+    pollLiveTraffic();
+  }, 3000);
 }
 
 function updateConnectionBadge(connected) {
@@ -1775,5 +1795,463 @@ async function submitCliCommand() {
 
   if (screen) {
     screen.scrollTop = screen.scrollHeight;
+  }
+}
+
+// ========================================================
+// Connected Clients & DHCP Leases Inspector (v1.6)
+// ========================================================
+
+async function loadConnectedClients(forceRefresh = false) {
+  const tbody = document.getElementById('connected-clients-table-body');
+  if (tbody && forceRefresh) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" style="text-align:center; padding:30px; color:var(--text-muted);">
+          در حال استعلام تازه از سرور DHCP و جدول ARP روتر... ⏳
+        </td>
+      </tr>
+    `;
+  }
+
+  try {
+    const res = await fetch('/api/clients');
+    if (!res.ok) return;
+    const data = await res.json();
+    state.clients = data.clients || [];
+
+    // Update KPI Counters
+    const kpiTotal = document.getElementById('kpi-clients-total');
+    if (kpiTotal) kpiTotal.innerText = data.count || 0;
+
+    const kpiActive = document.getElementById('kpi-clients-active');
+    if (kpiActive) kpiActive.innerText = data.active_count || 0;
+
+    const kpiStatic = document.getElementById('kpi-clients-static');
+    if (kpiStatic) kpiStatic.innerText = data.static_count || 0;
+
+    renderClientsTable(state.clients);
+  } catch (err) {
+    console.error('Failed to load connected clients:', err);
+    if (tbody) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="7" style="text-align:center; padding:24px; color:#ef4444;">
+            خطا در دریافت لیست کلاینت‌ها: ${err.message}
+          </td>
+        </tr>
+      `;
+    }
+  }
+}
+
+function renderClientsTable(clientsList) {
+  const tbody = document.getElementById('connected-clients-table-body');
+  if (!tbody) return;
+
+  if (!clientsList || clientsList.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="7" style="text-align:center; padding:32px; color:var(--text-muted);">
+          هیچ کلاینت فعالی در جدول DHCP یا ARP یافت نشد (یا روتر متصل نیست).
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = clientsList.map(c => {
+    const isStatic = c.is_static;
+    const isBlocked = c.is_blocked;
+    const statusColor = isBlocked ? '#ef4444' : (c.status === 'bound' ? '#10b981' : '#f59e0b');
+    const statusText = isBlocked ? 'مسدود شده 🚫' : (c.status === 'bound' ? 'متصل (Bound)' : c.status);
+
+    return `
+      <tr style="${isBlocked ? 'background:rgba(239,68,68,0.06);' : ''}">
+        <td>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:1.1rem;">${isBlocked ? '🛑' : (c.hostname.includes('Phone') ? '📱' : '💻')}</span>
+            <div>
+              <strong style="color:#fff; font-size:0.9rem;">${escapeHtml(c.hostname)}</strong>
+              ${c.comment ? `<div style="font-size:0.75rem; color:var(--text-muted);">${escapeHtml(c.comment)}</div>` : ''}
+            </div>
+          </div>
+        </td>
+        <td class="font-mono" style="color:var(--primary); font-weight:600;">${c.ip}</td>
+        <td class="font-mono" style="color:#cbd5e1; font-size:0.82rem;">${c.mac}</td>
+        <td><span class="status-badge" style="font-size:0.75rem;">${c.interface || 'bridge'}</span></td>
+        <td>
+          <span class="status-badge" style="color:${isStatic ? '#a855f7' : '#06b6d4'}; border-color:${isStatic ? 'rgba(168,85,247,0.3)' : 'rgba(6,182,212,0.3)'};">
+            ${isStatic ? '📌 ثابت (Static)' : '🔄 داینامیک (DHCP)'}
+          </span>
+          <span style="font-size:0.75rem; color:${statusColor}; margin-right:6px; font-weight:600;">${statusText}</span>
+        </td>
+        <td class="font-mono" style="font-size:0.8rem; color:var(--text-muted);">${c.expires_after || '---'}</td>
+        <td>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            ${!isStatic ? `
+              <button class="btn btn-outline" style="padding:4px 9px; font-size:0.75rem; color:#a855f7; border-color:rgba(168,85,247,0.4);" 
+                onclick="makeClientStatic('${c.mac}', '${c.ip}', '${escapeHtml(c.hostname)}')" title="تثبیت IP این دستگاه">
+                📌 رزرو ثابت
+              </button>
+            ` : ''}
+            ${!isBlocked ? `
+              <button class="btn btn-outline" style="padding:4px 9px; font-size:0.75rem; color:#ef4444; border-color:rgba(239,68,68,0.4);" 
+                onclick="blockClient('${c.mac}', '${c.ip}', '${escapeHtml(c.hostname)}')" title="مسدودسازی دسترسی اینترنت">
+                🚫 مسدودسازی
+              </button>
+            ` : `
+              <button class="btn btn-outline" style="padding:4px 9px; font-size:0.75rem; color:#10b981; border-color:rgba(16,185,129,0.4);" 
+                onclick="unblockClient('${c.mac}', '${escapeHtml(c.hostname)}')" title="رفع مسدودسازی دستگاه">
+                ✅ رفع انسداد
+              </button>
+            `}
+          </div>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function filterClientsBySearch(query) {
+  if (!query) {
+    renderClientsTable(state.clients);
+    return;
+  }
+  const filtered = state.clients.filter(c => 
+    (c.hostname && c.hostname.toLowerCase().includes(query)) ||
+    (c.ip && c.ip.includes(query)) ||
+    (c.mac && c.mac.toLowerCase().includes(query))
+  );
+  renderClientsTable(filtered);
+}
+
+async function makeClientStatic(mac, ip, hostname) {
+  try {
+    const res = await fetch('/api/clients/make-static', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mac, ip, hostname })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert(`✅ ${data.message}\nبرای بررسی گام‌ها و اعمال نهایی، به بخش Planها منتقل می‌شوید.`);
+      state.currentPlan = data.plan;
+      renderPlanView(data.plan);
+      switchTab('plan');
+    } else {
+      alert(`خطا: ${data.error || 'عملیات ناموفق بود.'}`);
+    }
+  } catch (err) {
+    alert(`خطای شبکه: ${err.message}`);
+  }
+}
+
+async function blockClient(mac, ip, hostname) {
+  if (!confirm(`آیا از مسدودسازی دسترسی اینترنت کلاینت «${hostname}» (${ip}) اطمینان دارید؟\nاین عملیات با ایجاد رول Drop در فایروال و با ایمنی کامل Zero-Lockout انجام می‌پذیرد.`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/clients/block', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mac, ip, hostname })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert(`🛡️ ${data.message}\nPlan مسدودسازی آماده است. برای بازبینی و تأیید نهایی، به صفحه Planها منتقل می‌شوید.`);
+      state.currentPlan = data.plan;
+      renderPlanView(data.plan);
+      switchTab('plan');
+    } else {
+      alert(`خطای ایمنی: ${data.error || 'عملیات انجام نشد.'}`);
+    }
+  } catch (err) {
+    alert(`خطای شبکه: ${err.message}`);
+  }
+}
+
+async function unblockClient(mac, hostname) {
+  try {
+    const res = await fetch('/api/clients/unblock', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mac, hostname })
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert(`✅ ${data.message}\nPlan رفع مسدودسازی آماده است.`);
+      state.currentPlan = data.plan;
+      renderPlanView(data.plan);
+      switchTab('plan');
+    }
+  } catch (err) {
+    alert(`خطای شبکه: ${err.message}`);
+  }
+}
+
+// ========================================================
+// Live Interface Torch & Dynamic Bandwidth Monitor (v1.6)
+// ========================================================
+
+async function pollLiveTraffic() {
+  try {
+    const res = await fetch('/api/traffic/live');
+    if (!res.ok) return;
+    const data = await res.json();
+    state.liveTraffic = data;
+
+    // Update Dashboard KPI card
+    const kpiTraffic = document.getElementById('kpi-traffic');
+    const totalMbps = (data.total_rx_mbps + data.total_tx_mbps).toFixed(1);
+    if (kpiTraffic) {
+      kpiTraffic.innerHTML = `${totalMbps} <span style="font-size:0.8rem; font-weight:500;">Mbps</span>`;
+    }
+    const kpiTrafficSub = document.getElementById('kpi-traffic-sub');
+    if (kpiTrafficSub) {
+      kpiTrafficSub.innerHTML = `<span>↓ ${data.total_rx_mbps} Mbps</span> &nbsp;|&nbsp; <span>↑ ${data.total_tx_mbps} Mbps</span>`;
+    }
+
+    // Update Clients Tab KPI card
+    const kpiClientsBw = document.getElementById('kpi-clients-live-bw');
+    if (kpiClientsBw) {
+      kpiClientsBw.innerHTML = `${totalMbps} <span style="font-size:0.8rem;">Mbps</span>`;
+    }
+    const kpiClientsBwSub = document.getElementById('kpi-clients-live-bw-sub');
+    if (kpiClientsBwSub) {
+      kpiClientsBwSub.innerText = `دریافت: ${data.total_rx_mbps} Mbps | ارسال: ${data.total_tx_mbps} Mbps`;
+    }
+
+    // Render Interface Torch Table if visible
+    if (state.activeTab === 'clients') {
+      renderTorchInterfacesTable(data.interfaces);
+    }
+
+    // Smoothly update Dashboard SVG Curve
+    if (data.chart_points && data.chart_points.length > 0) {
+      updateSvgTrafficChart(data.chart_points);
+    }
+  } catch (err) {
+    // Silent fail on background polling
+  }
+}
+
+function renderTorchInterfacesTable(interfaces) {
+  const tbody = document.getElementById('torch-interfaces-table-body');
+  if (!tbody) return;
+
+  if (!interfaces || interfaces.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="6" style="text-align:center; padding:20px; color:var(--text-muted);">
+          اطلاعات پورت‌های روتر دریافت نشد.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = interfaces.map(iface => {
+    const running = iface.running;
+    const rx = iface.rx_mbps || 0;
+    const tx = iface.tx_mbps || 0;
+    const totalBytes = iface.rx_bytes + iface.tx_bytes;
+    let bytesStr = `${totalBytes} B`;
+    if (totalBytes > 1024 * 1024 * 1024) {
+      bytesStr = `${(totalBytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+    } else if (totalBytes > 1024 * 1024) {
+      bytesStr = `${(totalBytes / (1024 * 1024)).toFixed(1)} MB`;
+    } else if (totalBytes > 1024) {
+      bytesStr = `${(totalBytes / 1024).toFixed(0)} KB`;
+    }
+
+    return `
+      <tr>
+        <td>
+          <strong class="font-mono" style="color:#fff;">${iface.name}</strong>
+        </td>
+        <td><span class="status-badge" style="font-size:0.75rem;">${iface.type}</span></td>
+        <td>
+          <span class="status-badge" style="color:${running ? '#10b981' : '#64748b'}; border-color:${running ? 'rgba(16,185,129,0.3)' : 'rgba(100,116,139,0.3)'};">
+            <span class="status-dot" style="background:${running ? '#10b981' : '#64748b'};"></span>
+            ${running ? 'فعال (Up)' : 'غیرفعال'}
+          </span>
+        </td>
+        <td class="font-mono" style="color:#38bdf8; font-weight:700;">
+          ↓ ${rx.toFixed(2)} <span style="font-size:0.75rem; color:var(--text-muted);">Mbps</span>
+        </td>
+        <td class="font-mono" style="color:#a855f7; font-weight:700;">
+          ↑ ${tx.toFixed(2)} <span style="font-size:0.75rem; color:var(--text-muted);">Mbps</span>
+        </td>
+        <td class="font-mono" style="font-size:0.8rem; color:var(--text-muted);">${bytesStr}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function updateSvgTrafficChart(points) {
+  const fillPath = document.getElementById('chart-svg-fill');
+  const linePath = document.getElementById('chart-svg-line');
+  const dot = document.getElementById('chart-svg-dot');
+  if (!fillPath || !linePath) return;
+
+  const width = 500;
+  const height = 160;
+  const maxVal = Math.max(...points, 20);
+  const step = width / (points.length - 1);
+
+  const coords = points.map((p, idx) => {
+    const x = Math.round(idx * step);
+    const y = Math.round(height - 20 - ((p / maxVal) * (height - 40)));
+    return { x, y };
+  });
+
+  let lineD = `M ${coords[0].x},${coords[0].y}`;
+  for (let i = 1; i < coords.length; i++) {
+    const prev = coords[i - 1];
+    const curr = coords[i];
+    const cpx = (prev.x + curr.x) / 2;
+    lineD += ` Q ${cpx},${prev.y} ${curr.x},${curr.y}`;
+  }
+
+  const fillD = `${lineD} L ${width},${height} L 0,${height} Z`;
+
+  fillPath.setAttribute('d', fillD);
+  linePath.setAttribute('d', lineD);
+  if (dot && coords.length > 0) {
+    const last = coords[coords.length - 1];
+    dot.setAttribute('cx', last.x);
+    dot.setAttribute('cy', last.y);
+  }
+}
+
+// ========================================================
+// Top Talkers & Active Connections (v1.6)
+// ========================================================
+
+async function loadTopTalkers() {
+  const container = document.getElementById('top-talkers-list-container');
+  const badge = document.getElementById('badge-total-conns');
+
+  try {
+    const res = await fetch('/api/connections/top');
+    if (!res.ok) return;
+    const data = await res.json();
+
+    if (badge) {
+      badge.innerText = `${data.total_connections || 0} سشن فعال`;
+    }
+
+    if (!container) return;
+
+    if (!data.top_talkers || data.top_talkers.length === 0) {
+      container.innerHTML = `
+        <div style="text-align:center; padding:24px; color:var(--text-muted); font-size:0.85rem;">
+          سشن فعالی در جدول فایروال کشف نشد.
+        </div>
+      `;
+      return;
+    }
+
+    container.innerHTML = data.top_talkers.map((t, idx) => `
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 14px; background:rgba(255,255,255,0.03); border:1px solid var(--glass-border); border-radius:10px;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-weight:700; color:var(--primary); font-size:0.85rem;">#${idx + 1}</span>
+          <div>
+            <div style="font-size:0.88rem; color:#fff; font-weight:600;">${escapeHtml(t.hostname)}</div>
+            <div class="font-mono" style="font-size:0.75rem; color:var(--text-muted);">${t.ip}</div>
+          </div>
+        </div>
+        <div style="text-align:left;">
+          <span class="status-badge" style="color:#a855f7; font-size:0.75rem; padding:3px 8px;">
+            ${t.connections} کانکشن
+          </span>
+          <div class="font-mono" style="font-size:0.72rem; color:var(--text-muted); margin-top:3px;">${t.bytes_formatted}</div>
+        </div>
+      </div>
+    `).join('');
+  } catch (err) {
+    console.error('Failed to load top talkers:', err);
+  }
+}
+
+// ========================================================
+// MikroTik Cloud DDNS & Scheduler Actions (v1.6)
+// ========================================================
+
+async function openCloudDdnsModal() {
+  const modal = document.getElementById('modal-cloud-ddns');
+  if (!modal) return;
+  modal.style.display = 'flex';
+
+  const nameEl = document.getElementById('cloud-ddns-name');
+  const ipEl = document.getElementById('cloud-ddns-public-ip');
+  const badgeEl = document.getElementById('cloud-ddns-status-badge');
+  const btnToggle = document.getElementById('btn-toggle-cloud-ddns');
+
+  if (nameEl) nameEl.innerText = 'در حال استعلام...';
+
+  try {
+    const res = await fetch('/api/cloud/status');
+    const data = await res.json();
+    state.cloudInfo = data;
+
+    if (nameEl) nameEl.innerText = data.dns_name || 'ثبت نشده (غیرفعال)';
+    if (ipEl) ipEl.innerText = data.public_address || '---';
+    if (badgeEl) {
+      const active = data.enabled;
+      badgeEl.innerText = active ? `فعال (${data.status || 'Updated'})` : 'غیرفعال';
+      badgeEl.style.color = active ? '#10b981' : '#f59e0b';
+    }
+    if (btnToggle) {
+      btnToggle.innerText = data.enabled ? 'غیرفعال‌سازی Cloud DDNS' : 'فعال‌سازی سرویس ابری DDNS ⚡';
+    }
+  } catch (err) {
+    if (nameEl) nameEl.innerText = 'خطا در استعلام';
+  }
+}
+
+function closeCloudDdnsModal() {
+  const modal = document.getElementById('modal-cloud-ddns');
+  if (modal) modal.style.display = 'none';
+}
+
+async function toggleCloudDdns() {
+  const current = state.cloudInfo?.enabled || false;
+  closeCloudDdnsModal();
+  try {
+    const res = await fetch('/api/cloud/toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: !current })
+    });
+    const data = await res.json();
+    if (data.success) {
+      state.currentPlan = data.plan;
+      renderPlanView(data.plan);
+      switchTab('plan');
+      alert(`✅ Plan تغییر وضعیت MikroTik Cloud DDNS آماده شد.`);
+    }
+  } catch (err) {
+    alert(`خطا: ${err.message}`);
+  }
+}
+
+async function scheduleDailyBackupJob() {
+  try {
+    const res = await fetch('/api/scheduler/create-backup-job', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+    if (data.success) {
+      state.currentPlan = data.plan;
+      renderPlanView(data.plan);
+      switchTab('plan');
+      alert(`⏱️ Plan زمان‌بندی خودکار پشتیبان‌گیری روزانه (ساعت ۰۳:۰۰ بامداد) تولید شد.`);
+    }
+  } catch (err) {
+    alert(`خطا: ${err.message}`);
   }
 }

@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """
-RouterPilot Control Plane v1.4 - Standalone Local Runner & Live Network Controller
+RouterPilot Control Plane v1.6 - Standalone Local Runner & Live Network Controller
 Featuring:
+- Connected Clients & DHCP Leases Inspector (real-time devices, dynamic vs static, safe reservation & blocking)
+- Live Torch & Bandwidth Monitor (real-time RX/TX Mbps per interface, dynamic SVG traffic graphs, Top Talkers)
+- RouterOS Cloud DDNS & Automated Daily Maintenance Scheduler
 - MNDP Neighbors Discovery (L2 Neighbor broadcast scanning like Winbox)
 - Smart Port Auto-Negotiation (auto-detection of Web 80, REST 443, API 8728, Winbox 8291)
 - Automatic Device Role Categorization (Wireless Radio PTP/PTMP vs Cloud Switch vs Gateway Router)
@@ -42,12 +45,16 @@ state = {
     "discovery": None,
     "neighbors": [],
     "last_neighbor_scan": None,
+    "traffic_history": [12.0, 15.5, 18.2, 14.0, 22.4, 25.1, 21.0, 28.5, 24.2, 30.0],
+    "prev_interface_stats": {},
+    "connected_clients": [],
+    "blocked_clients": [],
     "audit_logs": [
         {
             "Timestamp": datetime.now().isoformat(),
             "Category": "system",
             "Level": "info",
-            "Message": "سیستم RouterPilot v1.4 با موفقیت روی ویندوز راه‌اندازی شد. در انتظار اسکن همسایه‌ها یا اتصال..."
+            "Message": "سیستم RouterPilot v1.6 با موفقیت راه‌اندازی شد. آماده اسکن کلاینت‌ها و مانیتورینگ زنده ترافیک."
         }
     ]
 }
@@ -477,6 +484,107 @@ def discover_mikrotik_live(host, port, user, password, use_tls=True):
     except Exception:
         pass
 
+    # 11. DHCP Server Leases (/ip/dhcp-server/lease)
+    dhcp_leases = []
+    try:
+        raw_leases = query_mikrotik_rest(host, port, user, password, "/ip/dhcp-server/lease", use_tls=use_tls, timeout=4)
+        if isinstance(raw_leases, dict): raw_leases = [raw_leases]
+        for l in raw_leases:
+            addr = l.get("address", "") or l.get("active-address", "")
+            mac = (l.get("mac-address", "") or l.get("active-mac-address", "")).upper()
+            if addr and mac:
+                dhcp_leases.append({
+                    "id": l.get(".id", ""),
+                    "address": addr,
+                    "mac": mac,
+                    "hostname": l.get("host-name", "") or l.get("active-host-name", "") or l.get("comment", "") or f"دستگاه ({addr})",
+                    "status": l.get("status", "bound"),
+                    "dynamic": l.get("dynamic") in [True, "true"],
+                    "expires_after": l.get("expires-after", "نامشخص"),
+                    "server": l.get("server", "defconf"),
+                    "comment": l.get("comment", "")
+                })
+    except Exception:
+        pass
+
+    # 12. ARP Table (/ip/arp)
+    arp_entries = []
+    try:
+        raw_arps = query_mikrotik_rest(host, port, user, password, "/ip/arp", use_tls=use_tls, timeout=4)
+        if isinstance(raw_arps, dict): raw_arps = [raw_arps]
+        for a in raw_arps:
+            addr = a.get("address", "")
+            mac = a.get("mac-address", "").upper()
+            if addr and mac:
+                arp_entries.append({
+                    "id": a.get(".id", ""),
+                    "address": addr,
+                    "mac": mac,
+                    "interface": a.get("interface", "bridge"),
+                    "dynamic": a.get("dynamic") in [True, "true"],
+                    "comment": a.get("comment", "")
+                })
+    except Exception:
+        pass
+
+    # 13. MikroTik Cloud DDNS (/ip/cloud)
+    cloud_info = {"enabled": False, "dns_name": "", "public_address": "", "status": "disabled"}
+    try:
+        raw_cloud = query_mikrotik_rest(host, port, user, password, "/ip/cloud", use_tls=use_tls, timeout=4)
+        if isinstance(raw_cloud, dict):
+            cloud_info = {
+                "enabled": raw_cloud.get("ddns-enabled") in [True, "true"],
+                "dns_name": raw_cloud.get("dns-name", ""),
+                "public_address": raw_cloud.get("public-address", ""),
+                "status": raw_cloud.get("status", "updated")
+            }
+    except Exception:
+        pass
+
+    # Build Unified Connected Clients List
+    connected_clients = []
+    seen_macs = set()
+    blocked_list = state.get("blocked_clients", [])
+
+    for l in dhcp_leases:
+        mac = l["mac"]
+        seen_macs.add(mac)
+        matched_iface = "bridge"
+        for a in arp_entries:
+            if a["mac"] == mac:
+                matched_iface = a["interface"]
+                break
+        connected_clients.append({
+            "hostname": l["hostname"],
+            "ip": l["address"],
+            "mac": mac,
+            "interface": matched_iface,
+            "status": l["status"],
+            "is_static": not l["dynamic"],
+            "expires_after": l["expires_after"] if l["dynamic"] else "ثابت (Reserved)",
+            "is_blocked": (mac in blocked_list),
+            "comment": l["comment"]
+        })
+
+    for a in arp_entries:
+        mac = a["mac"]
+        if mac not in seen_macs and a["address"]:
+            hostname = a["comment"] or f"دستگاه استاتیک ({a['address']})"
+            connected_clients.append({
+                "hostname": hostname,
+                "ip": a["address"],
+                "mac": mac,
+                "interface": a["interface"],
+                "status": "active",
+                "is_static": True,
+                "expires_after": "نامحدود (ARP)",
+                "is_blocked": (mac in blocked_list),
+                "comment": a["comment"]
+            })
+            seen_macs.add(mac)
+
+    state["connected_clients"] = connected_clients
+
     # Build IP map per interface
     ip_map = {}
     for item in raw_ips:
@@ -617,7 +725,9 @@ def discover_mikrotik_live(host, port, user, password, use_tls=True):
             "HasUSBDisk": has_usb,
             "DiskFreeMB": int(res.get("free-hdd-space", 0) / (1024 * 1024))
         },
-        "RecommendedProfile": role["recommended_profile"]
+        "RecommendedProfile": role["recommended_profile"],
+        "ConnectedClients": connected_clients,
+        "Cloud": cloud_info
     }
 
     return discovery_result
@@ -985,6 +1095,19 @@ def execute_safe_routeros_command(command, connected=False, active_cfg=None):
                 res = query_mikrotik_rest(active_cfg["host"], active_cfg["port"], active_cfg["user"], active_cfg["password"], "/ip/route", use_tls=active_cfg["use_tls"])
                 lines = [f"{i}. dst-address={r.get('dst-address')} gateway={r.get('gateway')} active={r.get('active')} distance={r.get('distance')}" for i, r in enumerate(res if isinstance(res, list) else [res])]
                 return {"success": True, "output": "\n".join(lines), "error": ""}
+            elif cmd.startswith("/ip dhcp-server lease print") or cmd.startswith("/ip/dhcp-server/lease print") or cmd.startswith("/ip dhcp-server/lease print"):
+                res = query_mikrotik_rest(active_cfg["host"], active_cfg["port"], active_cfg["user"], active_cfg["password"], "/ip/dhcp-server/lease", use_tls=active_cfg["use_tls"])
+                lines = [f"{i}. address={r.get('address')} mac={r.get('mac-address')} host={r.get('host-name', '')} status={r.get('status')}" for i, r in enumerate(res if isinstance(res, list) else [res])]
+                return {"success": True, "output": "\n".join(lines), "error": ""}
+            elif cmd.startswith("/ip arp print") or cmd.startswith("/ip/arp print"):
+                res = query_mikrotik_rest(active_cfg["host"], active_cfg["port"], active_cfg["user"], active_cfg["password"], "/ip/arp", use_tls=active_cfg["use_tls"])
+                lines = [f"{i}. address={r.get('address')} mac={r.get('mac-address')} iface={r.get('interface')}" for i, r in enumerate(res if isinstance(res, list) else [res])]
+                return {"success": True, "output": "\n".join(lines), "error": ""}
+            elif cmd.startswith("/ip cloud print") or cmd.startswith("/ip/cloud print"):
+                res = query_mikrotik_rest(active_cfg["host"], active_cfg["port"], active_cfg["user"], active_cfg["password"], "/ip/cloud", use_tls=active_cfg["use_tls"])
+                if isinstance(res, list) and res: res = res[0]
+                lines = [f"{k}: {v}" for k, v in res.items()]
+                return {"success": True, "output": "\n".join(lines), "error": ""}
         except Exception:
             pass
 
@@ -1096,6 +1219,230 @@ set allow-remote-requests=yes servers=1.1.1.1,8.8.8.8
 # End of Export
 """
     return script
+
+def get_or_refresh_connected_clients(force_refresh=False):
+    """Retrieves or refreshes connected clients from active router."""
+    if not state.get("connected") or not state.get("active_router_config"):
+        return state.get("connected_clients", [])
+
+    if state.get("connected_clients") and not force_refresh:
+        return state["connected_clients"]
+
+    cfg = state["active_router_config"]
+    host = cfg["host"]
+    port = cfg["port"]
+    user = cfg["user"]
+    password = cfg["password"]
+    use_tls = cfg["use_tls"]
+
+    dhcp_leases = []
+    try:
+        raw_leases = query_mikrotik_rest(host, port, user, password, "/ip/dhcp-server/lease", use_tls=use_tls, timeout=4)
+        if isinstance(raw_leases, dict): raw_leases = [raw_leases]
+        for l in raw_leases:
+            addr = l.get("address", "") or l.get("active-address", "")
+            mac = (l.get("mac-address", "") or l.get("active-mac-address", "")).upper()
+            if addr and mac:
+                dhcp_leases.append({
+                    "id": l.get(".id", ""),
+                    "address": addr,
+                    "mac": mac,
+                    "hostname": l.get("host-name", "") or l.get("active-host-name", "") or l.get("comment", "") or f"دستگاه ({addr})",
+                    "status": l.get("status", "bound"),
+                    "dynamic": l.get("dynamic") in [True, "true"],
+                    "expires_after": l.get("expires-after", "نامشخص"),
+                    "server": l.get("server", "defconf"),
+                    "comment": l.get("comment", "")
+                })
+    except Exception:
+        pass
+
+    arp_entries = []
+    try:
+        raw_arps = query_mikrotik_rest(host, port, user, password, "/ip/arp", use_tls=use_tls, timeout=4)
+        if isinstance(raw_arps, dict): raw_arps = [raw_arps]
+        for a in raw_arps:
+            addr = a.get("address", "")
+            mac = a.get("mac-address", "").upper()
+            if addr and mac:
+                arp_entries.append({
+                    "id": a.get(".id", ""),
+                    "address": addr,
+                    "mac": mac,
+                    "interface": a.get("interface", "bridge"),
+                    "dynamic": a.get("dynamic") in [True, "true"],
+                    "comment": a.get("comment", "")
+                })
+    except Exception:
+        pass
+
+    connected_clients = []
+    seen_macs = set()
+    blocked_list = state.get("blocked_clients", [])
+
+    for l in dhcp_leases:
+        mac = l["mac"]
+        seen_macs.add(mac)
+        matched_iface = "bridge"
+        for a in arp_entries:
+            if a["mac"] == mac:
+                matched_iface = a["interface"]
+                break
+        connected_clients.append({
+            "hostname": l["hostname"],
+            "ip": l["address"],
+            "mac": mac,
+            "interface": matched_iface,
+            "status": l["status"],
+            "is_static": not l["dynamic"],
+            "expires_after": l["expires_after"] if l["dynamic"] else "ثابت (Reserved)",
+            "is_blocked": (mac in blocked_list),
+            "comment": l["comment"]
+        })
+
+    for a in arp_entries:
+        mac = a["mac"]
+        if mac not in seen_macs and a["address"]:
+            hostname = a["comment"] or f"دستگاه استاتیک ({a['address']})"
+            connected_clients.append({
+                "hostname": hostname,
+                "ip": a["address"],
+                "mac": mac,
+                "interface": a["interface"],
+                "status": "active",
+                "is_static": True,
+                "expires_after": "نامحدود (ARP)",
+                "is_blocked": (mac in blocked_list),
+                "comment": a["comment"]
+            })
+            seen_macs.add(mac)
+
+    state["connected_clients"] = connected_clients
+    return connected_clients
+
+def query_live_interface_traffic():
+    """Calculates instantaneous RX/TX bitrates per interface from RouterOS REST counters."""
+    now = time.time()
+    if not state.get("connected") or not state.get("active_router_config"):
+        return {
+            "timestamp": datetime.now().isoformat(),
+            "total_rx_mbps": 0.0,
+            "total_tx_mbps": 0.0,
+            "interfaces": [],
+            "chart_points": state.get("traffic_history", [0, 0, 0, 0, 0])[-12:]
+        }
+
+    cfg = state["active_router_config"]
+    try:
+        raw_ifaces = query_mikrotik_rest(cfg["host"], cfg["port"], cfg["user"], cfg["password"], "/interface", use_tls=cfg["use_tls"], timeout=4)
+        if isinstance(raw_ifaces, dict): raw_ifaces = [raw_ifaces]
+    except Exception:
+        raw_ifaces = []
+
+    rates = []
+    total_rx_mbps = 0.0
+    total_tx_mbps = 0.0
+    prev_stats = state.setdefault("prev_interface_stats", {})
+
+    for iface in raw_ifaces:
+        name = iface.get("name", "")
+        running = iface.get("running") in [True, "true"]
+        iface_type = iface.get("type", "ether")
+        rx_bytes = int(iface.get("rx-byte", 0))
+        tx_bytes = int(iface.get("tx-byte", 0))
+
+        rx_mbps = 0.0
+        tx_mbps = 0.0
+
+        if name in prev_stats:
+            p_rx, p_tx, p_time = prev_stats[name]
+            dt = max(0.4, now - p_time)
+            rx_diff = max(0, rx_bytes - p_rx)
+            tx_diff = max(0, tx_bytes - p_tx)
+            rx_mbps = round((rx_diff * 8) / (dt * 1_000_000), 2)
+            tx_mbps = round((tx_diff * 8) / (dt * 1_000_000), 2)
+
+        prev_stats[name] = (rx_bytes, tx_bytes, now)
+
+        if iface_type not in ["bridge"] and running:
+            total_rx_mbps += rx_mbps
+            total_tx_mbps += tx_mbps
+
+        rates.append({
+            "name": name,
+            "type": iface_type,
+            "running": running,
+            "rx_mbps": rx_mbps,
+            "tx_mbps": tx_mbps,
+            "rx_bytes": rx_bytes,
+            "tx_bytes": tx_bytes
+        })
+
+    total_combined = round(total_rx_mbps + total_tx_mbps, 1)
+    state.setdefault("traffic_history", []).append(total_combined)
+    if len(state["traffic_history"]) > 15:
+        state["traffic_history"].pop(0)
+
+    return {
+        "timestamp": datetime.now().isoformat(),
+        "total_rx_mbps": round(total_rx_mbps, 2),
+        "total_tx_mbps": round(total_tx_mbps, 2),
+        "interfaces": rates,
+        "chart_points": state["traffic_history"][-12:]
+    }
+
+def query_live_top_talkers():
+    """Retrieves active connection sessions from /ip/firewall/connection."""
+    if not state.get("connected") or not state.get("active_router_config"):
+        return {"total_connections": 0, "top_talkers": []}
+
+    cfg = state["active_router_config"]
+    try:
+        raw_conns = query_mikrotik_rest(cfg["host"], cfg["port"], cfg["user"], cfg["password"], "/ip/firewall/connection", use_tls=cfg["use_tls"], timeout=4)
+        if isinstance(raw_conns, dict): raw_conns = [raw_conns]
+    except Exception:
+        raw_conns = []
+
+    talkers_map = {}
+    total_conns = len(raw_conns)
+    client_name_map = {c["ip"]: c["hostname"] for c in state.get("connected_clients", [])}
+
+    for conn in raw_conns:
+        src = conn.get("src-address", "")
+        src_ip = src.split(":")[0] if ":" in src else src
+        if not src_ip or src_ip in ["127.0.0.1", "0.0.0.0"]:
+            continue
+
+        proto = conn.get("protocol", "tcp").upper()
+        bytes_count = int(conn.get("orig-bytes", 0)) + int(conn.get("repl-bytes", 0))
+
+        if src_ip not in talkers_map:
+            talkers_map[src_ip] = {
+                "ip": src_ip,
+                "hostname": client_name_map.get(src_ip, f"دستگاه ({src_ip})"),
+                "connections": 0,
+                "bytes": 0,
+                "protocols": set()
+            }
+        talkers_map[src_ip]["connections"] += 1
+        talkers_map[src_ip]["bytes"] += bytes_count
+        talkers_map[src_ip]["protocols"].add(proto)
+
+    sorted_talkers = sorted(talkers_map.values(), key=lambda x: x["connections"], reverse=True)[:10]
+    for t in sorted_talkers:
+        t["protocols"] = list(t["protocols"])
+        b = t["bytes"]
+        if b > 1024 * 1024:
+            t["bytes_formatted"] = f"{round(b / (1024*1024), 1)} MB"
+        elif b > 1024:
+            t["bytes_formatted"] = f"{round(b / 1024, 1)} KB"
+        else:
+            t["bytes_formatted"] = f"{b} B"
+
+    return {
+        "total_connections": total_conns,
+        "top_talkers": sorted_talkers
+    }
 
 def ai_generate_plan_from_prompt(prompt, disc=None):
     """Synthesizes a structured Plan from user natural language prompt."""
@@ -1437,6 +1784,41 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(rsc_content.encode("utf-8"))
 
+        elif self.path == "/api/clients":
+            clients = get_or_refresh_connected_clients(force_refresh=True)
+            self.send_json(200, {
+                "count": len(clients),
+                "active_count": sum(1 for c in clients if c.get("status") in ["bound", "active"]),
+                "static_count": sum(1 for c in clients if c.get("is_static")),
+                "clients": clients
+            })
+
+        elif self.path == "/api/traffic/live":
+            traffic = query_live_interface_traffic()
+            self.send_json(200, traffic)
+
+        elif self.path == "/api/connections/top":
+            top = query_live_top_talkers()
+            self.send_json(200, top)
+
+        elif self.path == "/api/cloud/status":
+            cloud_info = {"enabled": False, "dns_name": "", "public_address": "", "status": "disabled"}
+            if state.get("connected") and state.get("active_router_config"):
+                cfg = state["active_router_config"]
+                try:
+                    res = query_mikrotik_rest(cfg["host"], cfg["port"], cfg["user"], cfg["password"], "/ip/cloud", use_tls=cfg["use_tls"], timeout=4)
+                    if isinstance(res, dict):
+                        cloud_info = {
+                            "enabled": res.get("ddns-enabled") in [True, "true"],
+                            "dns_name": res.get("dns-name", ""),
+                            "public_address": res.get("public-address", ""),
+                            "status": res.get("status", "updated")
+                        }
+                except Exception:
+                    if state.get("discovery") and state["discovery"].get("Cloud"):
+                        cloud_info = state["discovery"]["Cloud"]
+            self.send_json(200, cloud_info)
+
         elif self.path == "/api/audit/logs":
             self.send_json(200, state["audit_logs"])
 
@@ -1714,6 +2096,285 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
                 "Message": f"اجرای دستور در کنسول: {cmd[:60]}"
             })
             self.send_json(200, res)
+
+        # ----------------------------------------------------
+        # 6.9. Make DHCP Lease Static
+        # ----------------------------------------------------
+        elif self.path == "/api/clients/make-static":
+            mac = req_data.get("mac", "").strip().upper()
+            ip = req_data.get("ip", "").strip()
+            hostname = req_data.get("hostname", mac).strip() or mac
+
+            if not mac or not ip:
+                self.send_json(400, {"success": False, "error": "مک‌آدرس و آدرس IP الزامی است."})
+                return
+
+            now_ts = int(time.time())
+            plan = {
+                "ID": f"plan_static_{now_ts}",
+                "Name": f"رزرو IP ثابت ({ip}) برای {hostname}",
+                "Description": f"تثبیت آدرس IP و رزرو دائم در سرور DHCP برای مک‌آدرس {mac}.",
+                "ProfileName": "DHCP-Make-Static",
+                "Status": "draft",
+                "Steps": [
+                    {
+                        "ID": 1,
+                        "Action": "execute",
+                        "TargetResource": "/ip/dhcp-server/lease",
+                        "NativeCommand": f'/ip/dhcp-server/lease make-static [find mac-address="{mac}"]',
+                        "Description": f"تبدیل اجاره موقت به رزرو ثابت برای MAC: {mac}",
+                        "RiskLevel": "low",
+                        "Applied": False
+                    },
+                    {
+                        "ID": 2,
+                        "Action": "set",
+                        "TargetResource": "/ip/dhcp-server/lease",
+                        "NativeCommand": f'/ip/dhcp-server/lease set [find mac-address="{mac}"] comment="RouterPilot Static: {hostname}"',
+                        "Description": f"تنظیم کامنت شناسایی برای کلاینت {hostname}",
+                        "RiskLevel": "low",
+                        "Applied": False
+                    }
+                ],
+                "RollbackSteps": [
+                    {
+                        "ID": 1,
+                        "Action": "set",
+                        "TargetResource": "/ip/dhcp-server/lease",
+                        "NativeCommand": f'/ip/dhcp-server/lease set [find mac-address="{mac}"] dynamic=yes',
+                        "Description": "بازگردانی به حالت داینامیک"
+                    }
+                ]
+            }
+
+            state["current_plan"] = plan
+
+            for c in state.get("connected_clients", []):
+                if c.get("mac") == mac:
+                    c["is_static"] = True
+                    c["expires_after"] = "ثابت (Reserved)"
+
+            state["audit_logs"].insert(0, {
+                "Timestamp": datetime.now().isoformat(),
+                "Category": "dhcp",
+                "Level": "info",
+                "Message": f"تولید Plan رزرو IP ثابت برای {hostname} ({ip})"
+            })
+
+            self.send_json(200, {
+                "success": True,
+                "message": f"پلن رزرو IP ثابت برای {hostname} آماده است.",
+                "plan": plan
+            })
+
+        # ----------------------------------------------------
+        # 6.10. Block Client via Firewall (Zero-Lockout Safe)
+        # ----------------------------------------------------
+        elif self.path == "/api/clients/block":
+            mac = req_data.get("mac", "").strip().upper()
+            ip = req_data.get("ip", "").strip()
+            hostname = req_data.get("hostname", mac).strip() or mac
+
+            if not mac:
+                self.send_json(400, {"success": False, "error": "مک‌آدرس کلاینت نمی‌تواند خالی باشد."})
+                return
+
+            router_host = (state.get("active_router_config") or {}).get("host", "")
+            router_ips = [router_host, "127.0.0.1", "localhost", "192.168.88.1"]
+            if state.get("discovery") and state["discovery"].get("Interfaces"):
+                for iface in state["discovery"]["Interfaces"]:
+                    for addr in iface.get("IPAddresses", []):
+                        router_ips.append(addr.split("/")[0])
+
+            if ip in router_ips:
+                self.send_json(400, {
+                    "success": False,
+                    "error": f"⚠️ نقض گارانتی Zero-Lockout: آدرس IP {ip} متعلق به پورت مدیریت یا روتر است و مسدودسازی آن مجاز نمی‌باشد!"
+                })
+                return
+
+            now_ts = int(time.time())
+            plan = {
+                "ID": f"plan_block_{now_ts}",
+                "Name": f"مسدودسازی دسترسی کلاینت: {hostname} ({ip})",
+                "Description": f"ایجاد رول مسدودسازی ترافیک فوروارد برای دستگاه {hostname} با مک {mac} و قطع سشن‌های فعال.",
+                "ProfileName": "Security-Block-Client",
+                "Status": "draft",
+                "Steps": [
+                    {
+                        "ID": 1,
+                        "Action": "add",
+                        "TargetResource": "/ip/firewall/filter",
+                        "NativeCommand": f'/ip/firewall/filter add chain=forward src-mac-address="{mac}" action=drop comment="Blocked by RouterPilot: {hostname} ({mac})" place-before=0',
+                        "Description": f"افزودن رول Drop در ابتدای فایروال فوروارد برای MAC: {mac}",
+                        "RiskLevel": "medium",
+                        "Applied": False
+                    },
+                    {
+                        "ID": 2,
+                        "Action": "execute",
+                        "TargetResource": "/ip/firewall/connection",
+                        "NativeCommand": f'/ip/firewall/connection remove [find src-address~="{ip}"]',
+                        "Description": f"قطع فوری کلیه نشست‌های ترافیکی فعال {ip}",
+                        "RiskLevel": "low",
+                        "Applied": False
+                    }
+                ],
+                "RollbackSteps": [
+                    {
+                        "ID": 1,
+                        "Action": "remove",
+                        "TargetResource": "/ip/firewall/filter",
+                        "NativeCommand": f'/ip/firewall/filter remove [find comment~="Blocked by RouterPilot:.*{mac}"]',
+                        "Description": "حذف رول مسدودسازی و بازگردانی دسترسی کلاینت"
+                    }
+                ]
+            }
+
+            state["current_plan"] = plan
+            if mac not in state.setdefault("blocked_clients", []):
+                state["blocked_clients"].append(mac)
+
+            for c in state.get("connected_clients", []):
+                if c.get("mac") == mac:
+                    c["is_blocked"] = True
+
+            state["audit_logs"].insert(0, {
+                "Timestamp": datetime.now().isoformat(),
+                "Category": "security",
+                "Level": "warning",
+                "Message": f"تولید Plan مسدودسازی کلاینت {hostname} (MAC: {mac})"
+            })
+
+            self.send_json(200, {
+                "success": True,
+                "message": f"پلن مسدودسازی کلاینت {hostname} با موفقیت ایجاد شد.",
+                "plan": plan
+            })
+
+        # ----------------------------------------------------
+        # 6.11. Unblock Client
+        # ----------------------------------------------------
+        elif self.path == "/api/clients/unblock":
+            mac = req_data.get("mac", "").strip().upper()
+            hostname = req_data.get("hostname", mac).strip() or mac
+
+            now_ts = int(time.time())
+            plan = {
+                "ID": f"plan_unblock_{now_ts}",
+                "Name": f"رفع مسدودسازی کلاینت: {hostname} ({mac})",
+                "Description": f"حذف رول مسدودسازی فایروال و بازگردانی دسترسی اینترنت دستگاه {hostname}.",
+                "ProfileName": "Security-Unblock-Client",
+                "Status": "draft",
+                "Steps": [
+                    {
+                        "ID": 1,
+                        "Action": "remove",
+                        "TargetResource": "/ip/firewall/filter",
+                        "NativeCommand": f'/ip/firewall/filter remove [find comment~="Blocked by RouterPilot:.*{mac}"]',
+                        "Description": f"حذف رول مسدودسازی ترافیک فایروال برای MAC: {mac}",
+                        "RiskLevel": "low",
+                        "Applied": False
+                    }
+                ]
+            }
+
+            state["current_plan"] = plan
+            if mac in state.get("blocked_clients", []):
+                state["blocked_clients"].remove(mac)
+
+            for c in state.get("connected_clients", []):
+                if c.get("mac") == mac:
+                    c["is_blocked"] = False
+
+            state["audit_logs"].insert(0, {
+                "Timestamp": datetime.now().isoformat(),
+                "Category": "security",
+                "Level": "info",
+                "Message": f"تولید Plan رفع مسدودسازی کلاینت {hostname} (MAC: {mac})"
+            })
+
+            self.send_json(200, {
+                "success": True,
+                "message": f"پلن رفع مسدودسازی کلاینت {hostname} آماده شد.",
+                "plan": plan
+            })
+
+        # ----------------------------------------------------
+        # 6.12. Toggle MikroTik Cloud DDNS
+        # ----------------------------------------------------
+        elif self.path == "/api/cloud/toggle":
+            enable = req_data.get("enabled", True)
+            now_ts = int(time.time())
+            enable_str = "yes" if enable else "no"
+            action_fa = "فعال‌سازی" if enable else "غیرفعال‌سازی"
+            plan = {
+                "ID": f"plan_cloud_{now_ts}",
+                "Name": f"{action_fa} سرویس ابری MikroTik Cloud DDNS",
+                "Description": f"تنظیم سرویس DNS دینامیک خودکار میکروتیک بر روی سرورهای جهانی MikroTik Cloud.",
+                "ProfileName": "Cloud-DDNS-Config",
+                "Status": "draft",
+                "Steps": [
+                    {
+                        "ID": 1,
+                        "Action": "set",
+                        "TargetResource": "/ip/cloud",
+                        "NativeCommand": f'/ip/cloud set ddns-enabled={enable_str} update-time=yes',
+                        "Description": f"{action_fa} DDNS ابری میکروتیک با همگام‌سازی زمان NTP",
+                        "RiskLevel": "low",
+                        "Applied": False
+                    }
+                ]
+            }
+            state["current_plan"] = plan
+            state["audit_logs"].insert(0, {
+                "Timestamp": datetime.now().isoformat(),
+                "Category": "cloud",
+                "Level": "info",
+                "Message": f"تولید Plan {action_fa} MikroTik Cloud DDNS"
+            })
+            self.send_json(200, {"success": True, "plan": plan})
+
+        # ----------------------------------------------------
+        # 6.13. Automated Daily Backup Scheduler Job
+        # ----------------------------------------------------
+        elif self.path == "/api/scheduler/create-backup-job":
+            now_ts = int(time.time())
+            plan = {
+                "ID": f"plan_sched_backup_{now_ts}",
+                "Name": "زمان‌بندی خودکار پشتیبان‌گیری روزانه (Daily Backup)",
+                "Description": "ایجاد اسکریپت و زمان‌بندی روزانه (ساعت ۰۳:۰۰ بامداد) جهت تهیه خودکار فایل .backup و خروجی متنی .rsc روی حافظه روتر.",
+                "ProfileName": "Maintenance-Daily-Backup-Scheduler",
+                "Status": "draft",
+                "Steps": [
+                    {
+                        "ID": 1,
+                        "Action": "add",
+                        "TargetResource": "/system/scheduler",
+                        "NativeCommand": '/system/scheduler add name="RouterPilot-Daily-Backup" interval=1d start-time=03:00:00 on-event="/system/backup/save name=auto_daily_backup.backup; /export file=auto_daily_export.rsc" comment="Scheduled Automated Backup by RouterPilot"',
+                        "Description": "افزودن تسک زمان‌بندی روزانه در RouterOS Scheduler",
+                        "RiskLevel": "low",
+                        "Applied": False
+                    }
+                ],
+                "RollbackSteps": [
+                    {
+                        "ID": 1,
+                        "Action": "remove",
+                        "TargetResource": "/system/scheduler",
+                        "NativeCommand": '/system/scheduler remove [find name="RouterPilot-Daily-Backup"]',
+                        "Description": "حذف تسک زمان‌بندی بکاپ روزانه"
+                    }
+                ]
+            }
+            state["current_plan"] = plan
+            state["audit_logs"].insert(0, {
+                "Timestamp": datetime.now().isoformat(),
+                "Category": "maintenance",
+                "Level": "info",
+                "Message": "تولید Plan زمان‌بندی بکاپ خودکار روزانه روی روتر"
+            })
+            self.send_json(200, {"success": True, "plan": plan})
 
         # ----------------------------------------------------
         # 7. Real AI Diagnostics Analysis with Role Awareness
