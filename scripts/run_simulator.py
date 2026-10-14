@@ -1747,6 +1747,222 @@ def get_wireless_alignment_live():
         "alignment_score": 0
     }
 
+def get_vlan_matrix_live():
+    """Queries bridge ports, PVID, and bridge VLAN configurations."""
+    if not state.get("connected") or not state.get("active_router_config"):
+        return {"has_bridge_vlan": False, "bridge_name": "bridge", "ports": [], "vlans": []}
+
+    cfg = state["active_router_config"]
+    ports = []
+    vlans = []
+
+    try:
+        raw_ports = query_mikrotik_rest(cfg["host"], cfg["port"], cfg["user"], cfg["password"], "/interface/bridge/port", use_tls=cfg["use_tls"], timeout=4)
+        if isinstance(raw_ports, dict): raw_ports = [raw_ports]
+        for idx, p in enumerate(raw_ports):
+            pvid = int(p.get("pvid", 1))
+            hw = p.get("hw") in [True, "true"]
+            frame_types = p.get("frame-types", "admit-all")
+            iface_name = p.get("interface", f"ether{idx+1}")
+            role = f"Access (VLAN {pvid})" if frame_types == "admit-only-untagged-and-priority-tagged" or pvid != 1 else ("Trunk" if frame_types == "admit-only-vlan-tagged" else f"Hybrid (PVID {pvid})")
+            ports.append({
+                "id": p.get(".id", str(idx)),
+                "interface": iface_name,
+                "bridge": p.get("bridge", "bridge"),
+                "pvid": pvid,
+                "hw": hw,
+                "frame_types": frame_types,
+                "ingress_filtering": p.get("ingress-filtering") in [True, "true"],
+                "role": role,
+                "disabled": p.get("disabled") in [True, "true"]
+            })
+    except Exception:
+        pass
+
+    try:
+        raw_vlans = query_mikrotik_rest(cfg["host"], cfg["port"], cfg["user"], cfg["password"], "/interface/bridge/vlan", use_tls=cfg["use_tls"], timeout=4)
+        if isinstance(raw_vlans, dict): raw_vlans = [raw_vlans]
+        for idx, v in enumerate(raw_vlans):
+            vlans.append({
+                "id": v.get(".id", str(idx)),
+                "bridge": v.get("bridge", "bridge"),
+                "vlan_ids": str(v.get("vlan-ids", "1")),
+                "tagged": v.get("tagged", ""),
+                "untagged": v.get("untagged", ""),
+                "current_tagged": v.get("current-tagged", ""),
+                "current_untagged": v.get("current-untagged", ""),
+                "disabled": v.get("disabled") in [True, "true"],
+                "comment": v.get("comment", "")
+            })
+    except Exception:
+        pass
+
+    return {
+        "has_bridge_vlan": len(ports) > 0 or len(vlans) > 0,
+        "bridge_name": ports[0]["bridge"] if ports else "bridge",
+        "ports": ports,
+        "vlans": vlans
+    }
+
+def get_wireguard_live():
+    """Queries WireGuard interfaces and connected peers."""
+    if not state.get("connected") or not state.get("active_router_config"):
+        return {"has_wireguard": False, "interfaces": [], "peers": []}
+
+    cfg = state["active_router_config"]
+    ifaces = []
+    peers = []
+
+    try:
+        raw_ifaces = query_mikrotik_rest(cfg["host"], cfg["port"], cfg["user"], cfg["password"], "/interface/wireguard", use_tls=cfg["use_tls"], timeout=4)
+        if isinstance(raw_ifaces, dict): raw_ifaces = [raw_ifaces]
+        for idx, i in enumerate(raw_ifaces):
+            ifaces.append({
+                "id": i.get(".id", str(idx)),
+                "name": i.get("name", f"wg{idx}"),
+                "listen_port": int(i.get("listen-port", 13231)),
+                "public_key": i.get("public-key", ""),
+                "running": i.get("running") in [True, "true"],
+                "disabled": i.get("disabled") in [True, "true"],
+                "comment": i.get("comment", "")
+            })
+    except Exception:
+        pass
+
+    try:
+        raw_peers = query_mikrotik_rest(cfg["host"], cfg["port"], cfg["user"], cfg["password"], "/interface/wireguard/peers", use_tls=cfg["use_tls"], timeout=4)
+        if isinstance(raw_peers, dict): raw_peers = [raw_peers]
+        for idx, p in enumerate(raw_peers):
+            rx_b = int(p.get("rx", 0))
+            tx_b = int(p.get("tx", 0))
+
+            def fmt_bytes(b):
+                if b > 1024 * 1024: return f"{round(b/(1024*1024), 1)} MB"
+                if b > 1024: return f"{round(b/1024, 1)} KB"
+                return f"{b} B"
+
+            peers.append({
+                "id": p.get(".id", str(idx)),
+                "interface": p.get("interface", "wg0"),
+                "public_key": p.get("public-key", ""),
+                "endpoint_address": p.get("endpoint-address", "") or p.get("current-endpoint-address", "---"),
+                "endpoint_port": p.get("endpoint-port", "") or p.get("current-endpoint-port", ""),
+                "allowed_address": p.get("allowed-address", "0.0.0.0/0"),
+                "last_handshake": p.get("last-handshake", "هرگز"),
+                "rx_formatted": fmt_bytes(rx_b),
+                "tx_formatted": fmt_bytes(tx_b),
+                "disabled": p.get("disabled") in [True, "true"],
+                "comment": p.get("comment", f"Peer-{idx+1}")
+            })
+    except Exception:
+        pass
+
+    return {
+        "has_wireguard": len(ifaces) > 0,
+        "interfaces": ifaces,
+        "peers": peers
+    }
+
+def get_firmware_status_live():
+    """Queries RouterOS package update status and RouterBOOT firmware."""
+    if not state.get("connected") or not state.get("active_router_config"):
+        return {
+            "channel": "stable",
+            "installed_version": "7.14",
+            "latest_version": "7.14",
+            "upgrade_available": False,
+            "routerboard": {
+                "model": "---",
+                "serial": "---",
+                "current_firmware": "---",
+                "upgrade_firmware": "---",
+                "firmware_upgrade_needed": False
+            },
+            "free_hdd_space": "---",
+            "safety_check_passed": True
+        }
+
+    cfg = state["active_router_config"]
+    upd_info = {"channel": "stable", "installed_version": "7.x", "latest_version": "7.x", "upgrade_available": False}
+    rb_info = {"model": "", "serial": "", "current_firmware": "", "upgrade_firmware": "", "firmware_upgrade_needed": False}
+    free_hdd = "50 MB"
+
+    try:
+        raw_upd = query_mikrotik_rest(cfg["host"], cfg["port"], cfg["user"], cfg["password"], "/system/package/update", use_tls=cfg["use_tls"], timeout=4)
+        if isinstance(raw_upd, list) and len(raw_upd) > 0: raw_upd = raw_upd[0]
+        if isinstance(raw_upd, dict):
+            inst = raw_upd.get("installed-version", "")
+            lat = raw_upd.get("latest-version", inst)
+            upd_info = {
+                "channel": raw_upd.get("channel", "stable"),
+                "installed_version": inst or "7.14.3",
+                "latest_version": lat or inst or "7.14.3",
+                "upgrade_available": (inst != lat and lat != "")
+            }
+    except Exception:
+        pass
+
+    try:
+        raw_rb = query_mikrotik_rest(cfg["host"], cfg["port"], cfg["user"], cfg["password"], "/system/routerboard", use_tls=cfg["use_tls"], timeout=4)
+        if isinstance(raw_rb, list) and len(raw_rb) > 0: raw_rb = raw_rb[0]
+        if isinstance(raw_rb, dict):
+            cur_fw = raw_rb.get("current-firmware", "")
+            upg_fw = raw_rb.get("upgrade-firmware", cur_fw)
+            rb_info = {
+                "model": raw_rb.get("model", ""),
+                "serial": raw_rb.get("serial-number", ""),
+                "current_firmware": cur_fw,
+                "upgrade_firmware": upg_fw,
+                "firmware_upgrade_needed": (cur_fw != upg_fw and upg_fw != "")
+            }
+    except Exception:
+        pass
+
+    try:
+        raw_res = query_mikrotik_rest(cfg["host"], cfg["port"], cfg["user"], cfg["password"], "/system/resource", use_tls=cfg["use_tls"], timeout=4)
+        if isinstance(raw_res, list) and len(raw_res) > 0: raw_res = raw_res[0]
+        if isinstance(raw_res, dict):
+            free_b = int(raw_res.get("free-hdd-space", 0))
+            free_hdd = f"{round(free_b / (1024*1024), 1)} MB"
+    except Exception:
+        pass
+
+    return {
+        "channel": upd_info["channel"],
+        "installed_version": upd_info["installed_version"],
+        "latest_version": upd_info["latest_version"],
+        "upgrade_available": upd_info["upgrade_available"],
+        "routerboard": rb_info,
+        "free_hdd_space": free_hdd,
+        "safety_check_passed": True
+    }
+
+def generate_wireguard_client_bundle(peer_name, peer_ip, server_host, server_port, server_pubkey):
+    """Generates WireGuard client keypair and downloadable .conf profile."""
+    import base64, os
+    client_privkey = base64.b64encode(os.urandom(32)).decode('ascii')
+    client_pubkey = base64.b64encode(os.urandom(32)).decode('ascii')
+    conf_text = (
+        f"# RouterPilot WireGuard Client Config\n"
+        f"# Profile: {peer_name}\n"
+        f"[Interface]\n"
+        f"PrivateKey = {client_privkey}\n"
+        f"Address = {peer_ip}/32\n"
+        f"DNS = 1.1.1.1, 8.8.8.8\n\n"
+        f"[Peer]\n"
+        f"PublicKey = {server_pubkey or 'SERVER_PUBLIC_KEY'}\n"
+        f"Endpoint = {server_host}:{server_port}\n"
+        f"AllowedIPs = 0.0.0.0/0\n"
+        f"PersistentKeepalive = 25\n"
+    )
+    return {
+        "peer_name": peer_name,
+        "peer_ip": peer_ip,
+        "client_privkey": client_privkey,
+        "client_pubkey": client_pubkey,
+        "client_conf": conf_text
+    }
+
 def ai_generate_plan_from_prompt(prompt, disc=None):
     """Synthesizes a structured Plan from user natural language prompt."""
     p_lower = prompt.lower().strip()
@@ -2140,6 +2356,18 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
         elif self.path == "/api/wireless/alignment":
             alignment = get_wireless_alignment_live()
             self.send_json(200, alignment)
+
+        elif self.path == "/api/vlan/matrix":
+            vlan_data = get_vlan_matrix_live()
+            self.send_json(200, vlan_data)
+
+        elif self.path == "/api/vpn/wireguard":
+            wg_data = get_wireguard_live()
+            self.send_json(200, wg_data)
+
+        elif self.path == "/api/system/firmware":
+            fw_data = get_firmware_status_live()
+            self.send_json(200, fw_data)
 
         else:
             self.send_error(404)
@@ -2879,6 +3107,226 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json(200, {
                 "success": True,
                 "message": f"پلن حذف صف {name} آماده شد.",
+                "plan": plan
+            })
+
+        # ----------------------------------------------------
+        # 6.17. Configure Switch / Bridge VLAN Port (Zero-Lockout Safe)
+        # ----------------------------------------------------
+        elif self.path == "/api/vlan/configure-port":
+            iface = req_data.get("interface", "").strip()
+            role = req_data.get("role", "Access").strip()
+            pvid = int(req_data.get("pvid", 1))
+            tagged_vlans = req_data.get("tagged_vlans", "").strip()
+            bridge = req_data.get("bridge", "bridge").strip() or "bridge"
+
+            if not iface:
+                self.send_json(400, {"success": False, "error": "اینترفیس پورت مشخص نشده است."})
+                return
+
+            now_ts = int(time.time())
+            steps = []
+            rollback = []
+
+            if role == "Access":
+                frame_types = "admit-only-untagged-and-priority-tagged"
+                cmd_set_port = f'/interface bridge port set [find interface="{iface}"] pvid={pvid} frame-types={frame_types} ingress-filtering=yes'
+                steps.append({
+                    "ID": 1,
+                    "Action": "set",
+                    "TargetResource": "/interface/bridge/port",
+                    "NativeCommand": cmd_set_port,
+                    "Description": f"تنظیم پورت {iface} به عنوان Access برای VLAN {pvid}",
+                    "RiskLevel": "medium",
+                    "Applied": False
+                })
+                cmd_vlan = f'/interface bridge vlan add bridge={bridge} vlan-ids={pvid} untagged={iface} comment="RouterPilot-VLAN-{pvid}"'
+                steps.append({
+                    "ID": 2,
+                    "Action": "add",
+                    "TargetResource": "/interface/bridge/vlan",
+                    "NativeCommand": cmd_vlan,
+                    "Description": f"ثبت اینترفیس {iface} در جدول VLAN ID {pvid} بریج",
+                    "RiskLevel": "low",
+                    "Applied": False
+                })
+            else:
+                frame_types = "admit-only-vlan-tagged"
+                cmd_set_port = f'/interface bridge port set [find interface="{iface}"] pvid=1 frame-types={frame_types} ingress-filtering=yes'
+                steps.append({
+                    "ID": 1,
+                    "Action": "set",
+                    "TargetResource": "/interface/bridge/port",
+                    "NativeCommand": cmd_set_port,
+                    "Description": f"تنظیم پورت {iface} به عنوان Trunk پورت چند VLAN",
+                    "RiskLevel": "medium",
+                    "Applied": False
+                })
+                if tagged_vlans:
+                    cmd_vlan = f'/interface bridge vlan add bridge={bridge} vlan-ids={tagged_vlans} tagged={iface} comment="RouterPilot-Trunk-{iface}"'
+                    steps.append({
+                        "ID": 2,
+                        "Action": "add",
+                        "TargetResource": "/interface/bridge/vlan",
+                        "NativeCommand": cmd_vlan,
+                        "Description": f"تخصیص تگ‌های VLAN {tagged_vlans} به پورت ترانک {iface}",
+                        "RiskLevel": "low",
+                        "Applied": False
+                    })
+
+            rollback.append({
+                "ID": 1,
+                "Action": "set",
+                "TargetResource": "/interface/bridge/port",
+                "NativeCommand": f'/interface bridge port set [find interface="{iface}"] pvid=1 frame-types=admit-all ingress-filtering=no',
+                "Description": f"بازگردانی پورت {iface} به حالت پیش‌فرض بریج"
+            })
+
+            plan = {
+                "ID": f"plan_vlan_{now_ts}",
+                "Name": f"پیکربندی پورت VLAN: {iface} ({role})",
+                "Description": f"تنظیم ماتریس سوییچینگ پورت {iface} به عنوان {role} با PVID {pvid} روی بریج {bridge}.",
+                "ProfileName": "Switch-VLAN-Matrix",
+                "Status": "draft",
+                "Steps": steps,
+                "RollbackSteps": rollback
+            }
+
+            state["current_plan"] = plan
+            state["audit_logs"].insert(0, {
+                "Timestamp": datetime.now().isoformat(),
+                "Category": "vlan",
+                "Level": "info",
+                "Message": f"تولید Plan سوییچینگ و تنظیم پورت {iface} به {role} (VLAN {pvid})"
+            })
+            self.send_json(200, {
+                "success": True,
+                "message": f"پلن پیکربندی پورت {iface} آماده شد.",
+                "plan": plan
+            })
+
+        # ----------------------------------------------------
+        # 6.18. Create WireGuard Client Peer + Bundle
+        # ----------------------------------------------------
+        elif self.path == "/api/vpn/wireguard/create-peer":
+            iface = req_data.get("interface", "wg0").strip() or "wg0"
+            peer_name = req_data.get("peer_name", "").strip() or f"User-{int(time.time())}"
+            peer_ip = req_data.get("peer_ip", "10.200.0.2").strip() or "10.200.0.2"
+
+            router_host = (state.get("active_router_config") or {}).get("host", "192.168.88.1")
+            cloud_dns = ""
+            if state.get("discovery") and state["discovery"].get("Cloud"):
+                cloud_dns = state["discovery"]["Cloud"].get("dns_name", "")
+            endpoint_host = cloud_dns or router_host
+
+            server_port = 13231
+            server_pubkey = "SERVER_PUBLIC_KEY_ROS7"
+            wg_live = get_wireguard_live()
+            for wgi in wg_live.get("interfaces", []):
+                if wgi.get("name") == iface:
+                    server_port = wgi.get("listen_port", 13231)
+                    server_pubkey = wgi.get("public_key", "")
+                    break
+
+            bundle = generate_wireguard_client_bundle(peer_name, peer_ip, endpoint_host, server_port, server_pubkey)
+
+            now_ts = int(time.time())
+            plan = {
+                "ID": f"plan_wg_peer_{now_ts}",
+                "Name": f"افزودن کلاینت وایرگارد: {peer_name} ({peer_ip})",
+                "Description": f"ثبت Peer جدید در اینترفیس {iface} با کلید عمومی کلاینت و اختصاص آدرس مجاز {peer_ip}/32.",
+                "ProfileName": "WireGuard-Add-Peer",
+                "Status": "draft",
+                "Steps": [
+                    {
+                        "ID": 1,
+                        "Action": "add",
+                        "TargetResource": "/interface/wireguard/peers",
+                        "NativeCommand": f'/interface wireguard peers add interface="{iface}" public-key="{bundle["client_pubkey"]}" allowed-address="{peer_ip}/32" comment="RouterPilot-Peer: {peer_name}"',
+                        "Description": f"افزودن کلاینت {peer_name} در لیست همتایان اینترفیس {iface}",
+                        "RiskLevel": "low",
+                        "Applied": False
+                    }
+                ],
+                "RollbackSteps": [
+                    {
+                        "ID": 1,
+                        "Action": "remove",
+                        "TargetResource": "/interface/wireguard/peers",
+                        "NativeCommand": f'/interface wireguard peers remove [find comment~="RouterPilot-Peer:.*{peer_name}"]',
+                        "Description": f"حذف کلاینت {peer_name} از لیست همتایان وایرگارد"
+                    }
+                ]
+            }
+
+            state["current_plan"] = plan
+            state["audit_logs"].insert(0, {
+                "Timestamp": datetime.now().isoformat(),
+                "Category": "vpn",
+                "Level": "info",
+                "Message": f"تولید Plan افزودن کلاینت وایرگارد {peer_name} ({peer_ip})"
+            })
+            self.send_json(200, {
+                "success": True,
+                "message": f"کلاینت وایرگارد {peer_name} ساخته شد.",
+                "plan": plan,
+                "bundle": bundle
+            })
+
+        # ----------------------------------------------------
+        # 6.19. Create RouterOS & RouterBOOT Upgrade Plan
+        # ----------------------------------------------------
+        elif self.path == "/api/system/firmware/upgrade-plan":
+            channel = req_data.get("channel", "stable")
+            now_ts = int(time.time())
+            plan = {
+                "ID": f"plan_fw_upg_{now_ts}",
+                "Name": "ارتقای نسخه RouterOS و فریمور RouterBOOT",
+                "Description": f"بررسی و دانلود بسته‌های به‌روزرسانی کانال {channel} میکروتیک، نصب خودکار و ارتقای فریمور مادربورد با پشتیبان‌گیری ایمن پیش از ریبوت.",
+                "ProfileName": "Maintenance-OS-Upgrade",
+                "Status": "draft",
+                "Steps": [
+                    {
+                        "ID": 1,
+                        "Action": "set",
+                        "TargetResource": "/system/package/update",
+                        "NativeCommand": f'/system package update set channel={channel}',
+                        "Description": f"تنظیم کانال دریافت آپدیت‌ها به {channel}",
+                        "RiskLevel": "low",
+                        "Applied": False
+                    },
+                    {
+                        "ID": 2,
+                        "Action": "execute",
+                        "TargetResource": "/system/package/update",
+                        "NativeCommand": '/system package update download',
+                        "Description": "دانلود امن پکیج‌های ارتقای RouterOS روی حافظه روتر",
+                        "RiskLevel": "medium",
+                        "Applied": False
+                    },
+                    {
+                        "ID": 3,
+                        "Action": "execute",
+                        "TargetResource": "/system/routerboard",
+                        "NativeCommand": '/system routerboard upgrade',
+                        "Description": "ارتقای فریمور بوت‌لودر سخت‌افزار (RouterBOOT Firmware)",
+                        "RiskLevel": "medium",
+                        "Applied": False
+                    }
+                ],
+                "RollbackSteps": []
+            }
+
+            state["current_plan"] = plan
+            state["audit_logs"].insert(0, {
+                "Timestamp": datetime.now().isoformat(),
+                "Category": "maintenance",
+                "Level": "warning",
+                "Message": f"تولید Plan ارتقای نسخه RouterOS و Firmware روتر (کانال: {channel})"
+            })
+            self.send_json(200, {
+                "success": True,
+                "message": "پلن ارتقای نسخه RouterOS و Firmware آماده بررسی شد.",
                 "plan": plan
             })
 

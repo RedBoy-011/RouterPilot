@@ -20,6 +20,10 @@ const state = {
   firewallRules: { filters: [], nats: [] },
   simpleQueues: [],
   wirelessAlignment: null,
+  vlanMatrix: null,
+  wireguardData: null,
+  firmwareStatus: null,
+  pendingWgPlan: null,
   activeQuickFilter: 'all',
   pollTimer: null,
 };
@@ -73,7 +77,12 @@ function switchTab(tabId) {
     loadFirewallRules();
   }
   if (tabId === 'queues') loadSimpleQueues();
-  if (tabId === 'tools') loadWirelessAlignment();
+  if (tabId === 'vlan') loadVlanMatrix();
+  if (tabId === 'wireguard') loadWireGuard();
+  if (tabId === 'tools') {
+    loadWirelessAlignment();
+    loadFirmwareStatus();
+  }
   if (tabId === 'audit') loadAuditLogs();
 }
 
@@ -2675,3 +2684,452 @@ function renderWirelessAlignmentView(data) {
     pillEl.style.color = data.has_wireless ? '#10b981' : '#f59e0b';
   }
 }
+
+// ========================================================
+// Switch VLAN & Port Matrix Manager (v1.8)
+// ========================================================
+
+async function loadVlanMatrix(force = false) {
+  try {
+    const res = await fetch('/api/vlan/matrix');
+    if (!res.ok) return;
+    const data = await res.json();
+    state.vlanMatrix = data;
+    renderVlanMatrixView(data);
+  } catch (err) {
+    console.error('Failed to load VLAN matrix:', err);
+  }
+}
+
+function renderVlanMatrixView(data) {
+  if (!data) return;
+
+  const bridgeNameEl = document.getElementById('kpi-vlan-bridge-name');
+  const portCountEl = document.getElementById('kpi-vlan-port-count');
+  const hwCountEl = document.getElementById('kpi-vlan-hw-count');
+  const vlanIdCountEl = document.getElementById('kpi-vlan-id-count');
+
+  if (bridgeNameEl) bridgeNameEl.innerText = data.bridge || 'bridge';
+  if (portCountEl) portCountEl.innerText = data.total_ports || (data.ports ? data.ports.length : 0);
+  if (hwCountEl) hwCountEl.innerText = data.hw_offload_ports !== undefined ? data.hw_offload_ports : 0;
+  if (vlanIdCountEl) vlanIdCountEl.innerText = data.vlan_count || (data.bridge_vlans ? data.bridge_vlans.length : 0);
+
+  // Render Visual Port Matrix Cards
+  const matrixGrid = document.getElementById('vlan-port-matrix-grid');
+  if (matrixGrid) {
+    if (!data.ports || data.ports.length === 0) {
+      matrixGrid.innerHTML = `
+        <div style="text-align:center; padding:24px; color:var(--text-muted); grid-column: 1 / -1;">
+          هیچ پورت بریج یا سوییچی یافت نشد.
+        </div>`;
+    } else {
+      matrixGrid.innerHTML = data.ports.map(port => {
+        const isTrunk = port.role === 'Trunk';
+        const roleBadge = isTrunk
+          ? `<span class="status-badge" style="color:#a855f7; font-size:0.75rem; background:rgba(168,85,247,0.12);">Trunk (Tagged)</span>`
+          : `<span class="status-badge" style="color:#10b981; font-size:0.75rem; background:rgba(16,185,129,0.12);">Access (PVID: ${port.pvid})</span>`;
+        
+        const hwBadge = port.hw_offload
+          ? `<span style="font-size:0.72rem; color:#38bdf8; font-weight:600;">⚡ HW Offload</span>`
+          : `<span style="font-size:0.72rem; color:var(--text-muted);">CPU Switched</span>`;
+
+        const taggedInfo = isTrunk && port.tagged_vlans && port.tagged_vlans.length > 0
+          ? `<div style="font-size:0.72rem; color:#a5f3fc; font-family:monospace; margin-top:4px;">VLANs: ${port.tagged_vlans.join(', ')}</div>`
+          : '';
+
+        return `
+          <div style="background:rgba(255,255,255,0.03); border:1px solid var(--glass-border); border-radius:10px; padding:14px; display:flex; flex-direction:column; justify-content:space-between; gap:10px; transition:border-color 0.2s ease;">
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="font-weight:700; color:#fff; font-family:monospace; font-size:0.95rem;">🔌 ${escapeHtml(port.interface)}</span>
+                ${hwBadge}
+              </div>
+              <div style="margin-bottom:6px;">
+                ${roleBadge}
+              </div>
+              ${taggedInfo}
+            </div>
+
+            <button type="button" class="btn btn-outline" style="font-size:0.75rem; padding:5px 8px; width:100%;" 
+              onclick="openConfigVlanPortModal('${escapeHtml(port.interface)}', ${port.pvid || 1}, '${escapeHtml(port.role || 'Access')}')">
+              ⚙️ تغییر نقش / VLAN
+            </button>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+
+  // Render Bridge VLANs Table
+  const vlanTbody = document.getElementById('bridge-vlans-table-body');
+  if (vlanTbody) {
+    if (!data.bridge_vlans || data.bridge_vlans.length === 0) {
+      vlanTbody.innerHTML = `
+        <tr>
+          <td colspan="6" style="text-align:center; padding:24px; color:var(--text-muted);">
+            هیچ رکورد VLAN در جدول /interface/bridge/vlan تعریف نشده است.
+          </td>
+        </tr>`;
+    } else {
+      vlanTbody.innerHTML = data.bridge_vlans.map(vlan => {
+        const taggedList = Array.isArray(vlan.tagged) ? vlan.tagged.join(', ') : (vlan.tagged || '---');
+        const untaggedList = Array.isArray(vlan.untagged) ? vlan.untagged.join(', ') : (vlan.untagged || '---');
+
+        return `
+          <tr>
+            <td class="font-mono" style="font-weight:700; color:var(--primary); font-size:1rem;">${escapeHtml(String(vlan.vlan_ids || ''))}</td>
+            <td class="font-mono" style="color:var(--text-muted);">${escapeHtml(vlan.bridge || 'bridge')}</td>
+            <td class="font-mono" style="color:#a855f7; font-size:0.85rem;">${escapeHtml(taggedList || '---')}</td>
+            <td class="font-mono" style="color:#10b981; font-size:0.85rem;">${escapeHtml(untaggedList || '---')}</td>
+            <td><span class="status-badge" style="color:#10b981; font-size:0.75rem;">فعال (Active)</span></td>
+            <td style="color:var(--text-muted); font-size:0.8rem;">${escapeHtml(vlan.comment || 'VLAN ' + vlan.vlan_ids)}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+  }
+}
+
+function openConfigVlanPortModal(iface, currentPvid, role) {
+  const modal = document.getElementById('modal-config-vlan-port');
+  const ifaceInput = document.getElementById('vlan-port-name-input');
+  const roleSelect = document.getElementById('vlan-port-role-select');
+  const pvidInput = document.getElementById('vlan-port-pvid-input');
+  const taggedInput = document.getElementById('vlan-port-tagged-input');
+
+  if (ifaceInput) ifaceInput.value = iface || '';
+  if (roleSelect) roleSelect.value = role || 'Access';
+  if (pvidInput) pvidInput.value = currentPvid || 1;
+  if (taggedInput) taggedInput.value = '';
+
+  toggleVlanPortRoleFields(role || 'Access');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeConfigVlanPortModal() {
+  const modal = document.getElementById('modal-config-vlan-port');
+  if (modal) modal.style.display = 'none';
+}
+
+function toggleVlanPortRoleFields(role) {
+  const pvidContainer = document.getElementById('vlan-pvid-container');
+  const taggedContainer = document.getElementById('vlan-tagged-container');
+
+  if (role === 'Trunk') {
+    if (pvidContainer) pvidContainer.style.display = 'none';
+    if (taggedContainer) taggedContainer.style.display = 'block';
+  } else {
+    if (pvidContainer) pvidContainer.style.display = 'block';
+    if (taggedContainer) taggedContainer.style.display = 'none';
+  }
+}
+
+async function submitConfigVlanPort() {
+  const iface = document.getElementById('vlan-port-name-input')?.value;
+  const role = document.getElementById('vlan-port-role-select')?.value || 'Access';
+  const pvid = parseInt(document.getElementById('vlan-port-pvid-input')?.value || '1', 10);
+  const tagged = document.getElementById('vlan-port-tagged-input')?.value || '';
+
+  if (!iface) {
+    alert('اینترفیس پورت مشخص نیست.');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/vlan/configure-port', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        interface: iface,
+        role: role,
+        pvid: pvid,
+        tagged_vlans: tagged
+      })
+    });
+
+    const data = await res.json();
+    if (data.success && data.plan) {
+      closeConfigVlanPortModal();
+      state.currentPlan = data.plan;
+      renderPlanView(data.plan);
+      switchTab('plan');
+      alert(`⚡ Plan پیکربندی VLAN پورت ${iface} با موفقیت آماده بررسی شد.`);
+    } else {
+      alert(`خطا در ایجاد Plan: ${data.error || 'ناشناخته'}`);
+    }
+  } catch (err) {
+    alert(`خطای شبکه: ${err.message}`);
+  }
+}
+
+// ========================================================
+// WireGuard VPN & Client Peer Manager (v1.8)
+// ========================================================
+
+async function loadWireGuard(force = false) {
+  try {
+    const res = await fetch('/api/vpn/wireguard');
+    if (!res.ok) return;
+    const data = await res.json();
+    state.wireguardData = data;
+    renderWireGuardView(data);
+  } catch (err) {
+    console.error('Failed to load WireGuard status:', err);
+  }
+}
+
+function renderWireGuardView(data) {
+  if (!data) return;
+
+  const ifaceCountEl = document.getElementById('kpi-wg-iface-count');
+  const ifaceSubEl = document.getElementById('kpi-wg-iface-sub');
+  const peerCountEl = document.getElementById('kpi-wg-peer-count');
+  const onlineCountEl = document.getElementById('kpi-wg-online-count');
+  const statusTextEl = document.getElementById('kpi-wg-status-text');
+
+  if (ifaceCountEl) ifaceCountEl.innerText = data.active_tunnels || (data.interfaces ? data.interfaces.length : 0);
+  if (ifaceSubEl) {
+    const listenPort = (data.interfaces && data.interfaces[0]) ? data.interfaces[0].listen_port : '13231';
+    ifaceSubEl.innerText = `Listen Port: ${listenPort}`;
+  }
+  if (peerCountEl) peerCountEl.innerText = data.total_peers || (data.peers ? data.peers.length : 0);
+  if (onlineCountEl) onlineCountEl.innerText = data.online_peers !== undefined ? data.online_peers : 0;
+  if (statusTextEl) {
+    statusTextEl.innerText = (data.active_tunnels > 0) ? 'فعال و ایمن 🛡️' : 'آماده راه‌اندازی';
+  }
+
+  // Render Peers Table
+  renderWireGuardPeersTable(data.peers || []);
+}
+
+function renderWireGuardPeersTable(peers) {
+  const tbody = document.getElementById('wireguard-peers-table-body');
+  if (!tbody) return;
+
+  if (!peers || peers.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="8" style="text-align:center; padding:32px; color:var(--text-muted);">
+          هیچ کلاینت یا پیری در جدول /interface/wireguard/peers تعریف نشده است.
+        </td>
+      </tr>`;
+    return;
+  }
+
+  tbody.innerHTML = peers.map(peer => {
+    const isOnline = peer.online || false;
+    const statusBadge = isOnline
+      ? `<span class="status-badge" style="color:#10b981; background:rgba(16,185,129,0.12);">🟢 آنلاین (Handshake)</span>`
+      : `<span class="status-badge" style="color:var(--text-muted); background:rgba(255,255,255,0.05);">⚪ آفلاین</span>`;
+
+    return `
+      <tr>
+        <td style="font-weight:700; color:#fff;">
+          <span style="display:flex; align-items:center; gap:6px;">
+            <span>👤</span> ${escapeHtml(peer.name || peer.comment || 'Peer')}
+          </span>
+        </td>
+        <td class="font-mono" style="color:var(--primary); font-size:0.85rem;">${escapeHtml(peer.interface || 'wg0')}</td>
+        <td class="font-mono" style="color:#38bdf8; font-weight:600;" dir="ltr">${escapeHtml(peer.allowed_address || '---')}</td>
+        <td class="font-mono" style="color:var(--text-muted); font-size:0.85rem;" dir="ltr">
+          ${escapeHtml(peer.endpoint_address ? `${peer.endpoint_address}:${peer.endpoint_port || 0}` : 'داینامیک')}
+        </td>
+        <td style="font-size:0.8rem; color:${isOnline ? '#10b981' : 'var(--text-muted)'};">${escapeHtml(peer.last_handshake || 'بدون ارتباط')}</td>
+        <td class="font-mono" style="font-size:0.85rem; color:#10b981;" dir="ltr">${escapeHtml(peer.rx_bytes || '0 B')}</td>
+        <td class="font-mono" style="font-size:0.85rem; color:#38bdf8;" dir="ltr">${escapeHtml(peer.tx_bytes || '0 B')}</td>
+        <td>${statusBadge}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function filterWireGuardPeers(query) {
+  if (!state.wireguardData || !state.wireguardData.peers) return;
+  const q = (query || '').toLowerCase().trim();
+  if (!q) {
+    renderWireGuardPeersTable(state.wireguardData.peers);
+    return;
+  }
+  const filtered = state.wireguardData.peers.filter(p => 
+    (p.name && p.name.toLowerCase().includes(q)) ||
+    (p.allowed_address && p.allowed_address.toLowerCase().includes(q)) ||
+    (p.endpoint_address && p.endpoint_address.toLowerCase().includes(q)) ||
+    (p.interface && p.interface.toLowerCase().includes(q))
+  );
+  renderWireGuardPeersTable(filtered);
+}
+
+function openAddWireGuardModal() {
+  const modal = document.getElementById('modal-add-wireguard-peer');
+  const step1 = document.getElementById('wg-modal-step1');
+  const step2 = document.getElementById('wg-modal-step2');
+  const nameInput = document.getElementById('wg-peer-name-input');
+  const ifaceInput = document.getElementById('wg-server-iface-input');
+  const ipInput = document.getElementById('wg-peer-ip-input');
+
+  if (step1) step1.style.display = 'block';
+  if (step2) step2.style.display = 'none';
+
+  if (nameInput) nameInput.value = '';
+  if (ifaceInput) {
+    const ifaces = state.wireguardData?.interfaces;
+    ifaceInput.value = (ifaces && ifaces.length > 0) ? ifaces[0].name : 'wg0';
+  }
+  if (ipInput) {
+    const peerCount = (state.wireguardData?.peers?.length || 0);
+    ipInput.value = `10.200.0.${peerCount + 2}`;
+  }
+
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeAddWireGuardModal() {
+  const modal = document.getElementById('modal-add-wireguard-peer');
+  if (modal) modal.style.display = 'none';
+}
+
+async function submitCreateWireGuardPeer() {
+  const name = document.getElementById('wg-peer-name-input')?.value?.trim();
+  const iface = document.getElementById('wg-server-iface-input')?.value?.trim() || 'wg0';
+  const ip = document.getElementById('wg-peer-ip-input')?.value?.trim();
+
+  if (!name || !ip) {
+    alert('نام کاربر و آدرس آی‌پی اختصاصی VPN الزامی است.');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/vpn/wireguard/create-peer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: name,
+        interface: iface,
+        client_ip: ip
+      })
+    });
+
+    const data = await res.json();
+    if (data.success && data.bundle) {
+      state.pendingWgPlan = data.plan;
+
+      const confText = document.getElementById('wg-generated-conf-text');
+      if (confText) confText.value = data.bundle.client_conf || '';
+
+      const step1 = document.getElementById('wg-modal-step1');
+      const step2 = document.getElementById('wg-modal-step2');
+      if (step1) step1.style.display = 'none';
+      if (step2) step2.style.display = 'block';
+    } else {
+      alert(`خطا در ساخت کلاینت وایرگارد: ${data.error || 'ناشناخته'}`);
+    }
+  } catch (err) {
+    alert(`خطای شبکه: ${err.message}`);
+  }
+}
+
+function copyWireGuardConf() {
+  const confText = document.getElementById('wg-generated-conf-text')?.value;
+  if (!confText) return;
+
+  navigator.clipboard.writeText(confText).then(() => {
+    const btn = document.getElementById('btn-copy-wg-conf');
+    if (btn) {
+      const orig = btn.innerText;
+      btn.innerText = '✓ کانفیگ کپی شد!';
+      setTimeout(() => { btn.innerText = orig; }, 2000);
+    }
+  }).catch(err => {
+    alert('کپی نشد: ' + err.message);
+  });
+}
+
+function proceedWireGuardPeerPlan() {
+  if (!state.pendingWgPlan) {
+    closeAddWireGuardModal();
+    return;
+  }
+  closeAddWireGuardModal();
+  state.currentPlan = state.pendingWgPlan;
+  renderPlanView(state.currentPlan);
+  switchTab('plan');
+}
+
+// ========================================================
+// Firmware & RouterBOOT Upgrade Inspector (v1.8)
+// ========================================================
+
+async function loadFirmwareStatus(force = false) {
+  try {
+    const res = await fetch('/api/system/firmware');
+    if (!res.ok) return;
+    const data = await res.json();
+    state.firmwareStatus = data;
+    renderFirmwareStatusView(data);
+  } catch (err) {
+    console.error('Failed to load firmware status:', err);
+  }
+}
+
+function renderFirmwareStatusView(data) {
+  if (!data) return;
+
+  const instEl = document.getElementById('fw-installed-version');
+  const chEl = document.getElementById('fw-channel-label');
+  const latEl = document.getElementById('fw-latest-version');
+  const badgeEl = document.getElementById('fw-upgrade-status-badge');
+  const bootVerEl = document.getElementById('fw-routerboot-version');
+  const bootSubEl = document.getElementById('fw-routerboot-sub');
+  const hddEl = document.getElementById('fw-free-hdd');
+
+  if (instEl) instEl.innerText = data.installed_version || '---';
+  if (chEl) chEl.innerText = `کانال: ${data.channel || 'Stable'}`;
+  if (latEl) latEl.innerText = data.latest_version || '---';
+
+  if (badgeEl) {
+    if (data.upgrade_available) {
+      badgeEl.innerText = 'ارتقای رسمی در دسترس است ⚠️';
+      badgeEl.style.color = '#f59e0b';
+      badgeEl.style.background = 'rgba(245,158,11,0.15)';
+    } else {
+      badgeEl.innerText = 'سیستم‌عامل کاملاً به‌روز است ✓';
+      badgeEl.style.color = '#10b981';
+      badgeEl.style.background = 'rgba(16,185,129,0.15)';
+    }
+  }
+
+  if (bootVerEl) bootVerEl.innerText = data.routerboot_current || '---';
+  if (bootSubEl) {
+    bootSubEl.innerText = data.routerboot_upgrade_available
+      ? `ارتقا به فریمور ${data.routerboot_upgrade}`
+      : `فریمور چیپ مادربرد به‌روز است (${data.routerboot_current})`;
+  }
+
+  if (hddEl) {
+    hddEl.innerText = data.free_hdd_space || '---';
+    hddEl.style.color = data.storage_safe ? '#10b981' : '#ef4444';
+  }
+}
+
+async function createFirmwareUpgradePlan() {
+  try {
+    const res = await fetch('/api/system/firmware/upgrade-plan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+
+    const data = await res.json();
+    if (data.success && data.plan) {
+      state.currentPlan = data.plan;
+      renderPlanView(data.plan);
+      switchTab('plan');
+      alert(`⚡ Plan ارتقای سیستم‌عامل و RouterBOOT آماده بررسی شد.`);
+    } else {
+      alert(`خطا در ایجاد Plan ارتقا: ${data.error || 'ناشناخته'}`);
+    }
+  } catch (err) {
+    alert(`خطای شبکه: ${err.message}`);
+  }
+}
+
