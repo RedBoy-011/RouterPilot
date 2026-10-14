@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
 """
-RouterPilot Control Plane v1.6 - Standalone Local Runner & Live Network Controller
+RouterPilot Control Plane v1.7 - Standalone Local Runner & Live Network Controller
 Featuring:
+- Security Shield & Firewall Rules Auditor (vulnerability scanning, DNS open resolver check, 1-click hardening)
+- Bandwidth Queue & Traffic Shaper Manager (Simple Queues, speed limiting per IP/subnet)
+- Wireless PTP/PTMP Alignment & Antenna Tuner (real-time RSSI, CCQ, SNR, visual alignment gauge)
 - Connected Clients & DHCP Leases Inspector (real-time devices, dynamic vs static, safe reservation & blocking)
 - Live Torch & Bandwidth Monitor (real-time RX/TX Mbps per interface, dynamic SVG traffic graphs, Top Talkers)
 - RouterOS Cloud DDNS & Automated Daily Maintenance Scheduler
@@ -54,7 +57,7 @@ state = {
             "Timestamp": datetime.now().isoformat(),
             "Category": "system",
             "Level": "info",
-            "Message": "سیستم RouterPilot v1.6 با موفقیت راه‌اندازی شد. آماده اسکن کلاینت‌ها و مانیتورینگ زنده ترافیک."
+            "Message": "سیستم RouterPilot v1.7 با موفقیت راه‌اندازی شد. سپر امنیتی، کنترل پهنای باند و تراز آنتن فعال است."
         }
     ]
 }
@@ -1444,6 +1447,306 @@ def query_live_top_talkers():
         "top_talkers": sorted_talkers
     }
 
+def audit_router_security(services, filter_rules, dns_cfg):
+    """
+    Evaluates router security against critical vulnerabilities:
+    1. Open DNS Resolver on WAN (major DDoS vulnerability)
+    2. Unencrypted management services (Telnet 23, FTP 21, HTTP 80)
+    3. Missing default input drop rule (Zero-Trust)
+    4. Brute-force protection rules (SSH / Winbox)
+    """
+    score = 100
+    vulnerabilities = []
+    passed = []
+
+    # Check 1: Open DNS Resolver
+    allow_remote = dns_cfg.get("allow-remote-requests") in [True, "true"]
+    has_wan_dns_drop = any(
+        r.get("chain") == "input" and 
+        (r.get("protocol") == "udp" or r.get("protocol") == "53") and 
+        (r.get("dst-port") == "53" or "53" in str(r.get("dst-port", ""))) and 
+        r.get("action") == "drop"
+        for r in filter_rules
+    )
+    if allow_remote and not has_wan_dns_drop:
+        score -= 30
+        vulnerabilities.append({
+            "id": "OPEN_DNS_RESOLVER",
+            "title": "آسیب‌پذیری Open DNS Resolver",
+            "severity": "critical",
+            "description": "گزینه allow-remote-requests فعال است اما هیچ رول Drop پورت 53 روی ورودی‌های اینترنت (WAN) وجود ندارد. روتر شما در معرض سوءاستفاده در حملات بازتابی DNS Amplification قرار دارد.",
+            "remediation": "/ip firewall filter add chain=input in-interface-list=WAN protocol=udp dst-port=53 action=drop comment=\"Block WAN DNS\" place-before=0"
+        })
+    else:
+        passed.append("پورت 53 دی‌ان‌اس از سمت اینترنت محافظت شده یا درخواست‌های خارجی غیرفعال است.")
+
+    # Check 2: Insecure services (Telnet, FTP, HTTP)
+    insecure_ports = []
+    for s in services:
+        name = s.get("name", "")
+        disabled = s.get("disabled") in [True, "true"]
+        if not disabled:
+            if name in ["telnet", "ftp"]:
+                insecure_ports.append(f"{name} (پورت {s.get('port')})")
+    if insecure_ports:
+        score -= 20
+        vulnerabilities.append({
+            "id": "INSECURE_SERVICES_ENABLED",
+            "title": "سرویس‌های ناامن و بدون رمزنگاری فعال",
+            "severity": "high",
+            "description": f"سرویس‌های ناامن {', '.join(insecure_ports)} فعال هستند که اطلاعات و رمزهای عبور را بدون رمزگذاری (Plaintext) ارسال می‌کنند.",
+            "remediation": "/ip service set [find name=telnet] disabled=yes; /ip service set [find name=ftp] disabled=yes"
+        })
+    else:
+        passed.append("سرویس‌های پرخطر Telnet و FTP به درستی غیرفعال شده‌اند.")
+
+    # Check 3: Default Drop Filter on Input Chain
+    has_input_drop = any(
+        r.get("chain") == "input" and r.get("action") == "drop" and not r.get("protocol")
+        for r in filter_rules
+    )
+    if not has_input_drop:
+        score -= 20
+        vulnerabilities.append({
+            "id": "NO_DEFAULT_INPUT_DROP",
+            "title": "نبود رول سراسری Drop در فایروال اینپوت",
+            "severity": "medium",
+            "description": "پورت‌های مدیریتی روتر در صورت عدم وجود رول پیش‌فرض Drop، ممکن است بدون احراز هویت در دسترس اینترنت قرار گیرند.",
+            "remediation": "/ip firewall filter add chain=input in-interface-list=WAN action=drop comment=\"Drop All WAN Input\""
+        })
+    else:
+        passed.append("رول مسدودسازی سراسری ترافیک‌های غیرمجاز ورودی (Default Input Drop) فعال است.")
+
+    # Check 4: Brute-Force Protection
+    has_brute_force = any(
+        "brute" in (r.get("comment", "")).lower() or "login" in (r.get("comment", "")).lower()
+        for r in filter_rules
+    )
+    if not has_brute_force:
+        score -= 15
+        vulnerabilities.append({
+            "id": "NO_BRUTE_FORCE_PROTECTION",
+            "title": "فقدان سیستم دفاع خودکار در برابر Brute-force",
+            "severity": "medium",
+            "description": "هیچ رولی برای قطع دسترسی آی‌پی‌های مهاجم پس از تلاش‌های مکرر ورود ناموفق (Winbox/SSH) ثبت نشده است.",
+            "remediation": "فعال‌سازی پلن ضد بروت‌فورس از گالری کانفیگ‌های فوری"
+        })
+    else:
+        passed.append("سیستم دفاع خودکار در برابر حملات ورود ناموفق (Brute-Force) در فایروال فعال است.")
+
+    score = max(20, min(100, score))
+    grade = "A+" if score >= 90 else ("B" if score >= 75 else ("C" if score >= 50 else "D (بحرانی)"))
+
+    return {
+        "score": score,
+        "grade": grade,
+        "vulnerabilities": vulnerabilities,
+        "passed_checks": passed
+    }
+
+def get_security_audit_live():
+    """Performs live security audit on active connected router."""
+    if not state.get("connected") or not state.get("active_router_config"):
+        return {
+            "score": 100,
+            "grade": "نامشخص",
+            "vulnerabilities": [],
+            "passed_checks": ["جهت ارزیابی امنیتی زنده، ابتدا به روتر خود متصل شوید."]
+        }
+    cfg = state["active_router_config"]
+    services = []
+    filter_rules = []
+    dns_cfg = {}
+    try:
+        raw_serv = query_mikrotik_rest(cfg["host"], cfg["port"], cfg["user"], cfg["password"], "/ip/service", use_tls=cfg["use_tls"], timeout=4)
+        if isinstance(raw_serv, dict): raw_serv = [raw_serv]
+        services = raw_serv or []
+    except Exception:
+        pass
+
+    try:
+        raw_filt = query_mikrotik_rest(cfg["host"], cfg["port"], cfg["user"], cfg["password"], "/ip/firewall/filter", use_tls=cfg["use_tls"], timeout=4)
+        if isinstance(raw_filt, dict): raw_filt = [raw_filt]
+        filter_rules = raw_filt or []
+    except Exception:
+        pass
+
+    try:
+        raw_dns = query_mikrotik_rest(cfg["host"], cfg["port"], cfg["user"], cfg["password"], "/ip/dns", use_tls=cfg["use_tls"], timeout=4)
+        if isinstance(raw_dns, list) and len(raw_dns) > 0:
+            dns_cfg = raw_dns[0]
+        elif isinstance(raw_dns, dict):
+            dns_cfg = raw_dns
+    except Exception:
+        pass
+
+    return audit_router_security(services, filter_rules, dns_cfg)
+
+def get_firewall_rules_live():
+    """Queries and formats active filter and NAT rules from RouterOS."""
+    if not state.get("connected") or not state.get("active_router_config"):
+        return {"filters": [], "nats": []}
+
+    cfg = state["active_router_config"]
+    filters = []
+    nats = []
+
+    try:
+        raw_filters = query_mikrotik_rest(cfg["host"], cfg["port"], cfg["user"], cfg["password"], "/ip/firewall/filter", use_tls=cfg["use_tls"], timeout=4)
+        if isinstance(raw_filters, dict): raw_filters = [raw_filters]
+        for idx, r in enumerate(raw_filters):
+            filters.append({
+                "id": r.get(".id", str(idx)),
+                "chain": r.get("chain", "input"),
+                "action": r.get("action", "accept"),
+                "protocol": r.get("protocol", ""),
+                "dst_port": r.get("dst-port", ""),
+                "in_interface": r.get("in-interface", "") or r.get("in-interface-list", ""),
+                "out_interface": r.get("out-interface", "") or r.get("out-interface-list", ""),
+                "bytes": int(r.get("bytes", 0)),
+                "packets": int(r.get("packets", 0)),
+                "disabled": r.get("disabled") in [True, "true"],
+                "comment": r.get("comment", "")
+            })
+    except Exception:
+        pass
+
+    try:
+        raw_nats = query_mikrotik_rest(cfg["host"], cfg["port"], cfg["user"], cfg["password"], "/ip/firewall/nat", use_tls=cfg["use_tls"], timeout=4)
+        if isinstance(raw_nats, dict): raw_nats = [raw_nats]
+        for idx, r in enumerate(raw_nats):
+            nats.append({
+                "id": r.get(".id", str(idx)),
+                "chain": r.get("chain", "srcnat"),
+                "action": r.get("action", "masquerade"),
+                "protocol": r.get("protocol", ""),
+                "dst_port": r.get("dst-port", ""),
+                "to_addresses": r.get("to-addresses", ""),
+                "to_ports": r.get("to-ports", ""),
+                "out_interface": r.get("out-interface", "") or r.get("out-interface-list", ""),
+                "bytes": int(r.get("bytes", 0)),
+                "packets": int(r.get("packets", 0)),
+                "disabled": r.get("disabled") in [True, "true"],
+                "comment": r.get("comment", "")
+            })
+    except Exception:
+        pass
+
+    return {"filters": filters, "nats": nats}
+
+def get_simple_queues_live():
+    """Queries and formats active simple queues from RouterOS."""
+    if not state.get("connected") or not state.get("active_router_config"):
+        return []
+
+    cfg = state["active_router_config"]
+    queues = []
+    try:
+        raw_queues = query_mikrotik_rest(cfg["host"], cfg["port"], cfg["user"], cfg["password"], "/queue/simple", use_tls=cfg["use_tls"], timeout=4)
+        if isinstance(raw_queues, dict): raw_queues = [raw_queues]
+        for idx, q in enumerate(raw_queues):
+            max_limit = q.get("max-limit", "0/0")
+            parts = max_limit.split("/")
+            upload_bps = int(parts[0]) if len(parts) > 0 and parts[0].isdigit() else 0
+            download_bps = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
+
+            def fmt_speed(bps):
+                if bps >= 1_000_000: return f"{round(bps/1_000_000, 1)} Mbps"
+                if bps >= 1_000: return f"{round(bps/1_000, 1)} Kbps"
+                return f"{bps} bps"
+
+            queues.append({
+                "id": q.get(".id", str(idx)),
+                "name": q.get("name", f"Queue-{idx+1}"),
+                "target": q.get("target", "0.0.0.0/0"),
+                "max_upload": fmt_speed(upload_bps) if upload_bps else "نامحدود",
+                "max_download": fmt_speed(download_bps) if download_bps else "نامحدود",
+                "raw_limit": max_limit,
+                "bytes": q.get("bytes", "0/0"),
+                "dropped": q.get("dropped", "0/0"),
+                "rate": q.get("rate", "0/0"),
+                "disabled": q.get("disabled") in [True, "true"],
+                "comment": q.get("comment", "")
+            })
+    except Exception:
+        pass
+
+    return queues
+
+def get_wireless_alignment_live():
+    """Queries wireless registration table for real-time antenna alignment telemetry."""
+    if not state.get("connected") or not state.get("active_router_config"):
+        return {
+            "has_wireless": False,
+            "interface": "",
+            "mac": "",
+            "signal_strength": "---",
+            "tx_ccq": 0,
+            "rx_ccq": 0,
+            "snr": 0,
+            "frequency": "---",
+            "band": "---",
+            "quality_label": "عدم شناسایی سیگنال",
+            "alignment_score": 0
+        }
+
+    cfg = state["active_router_config"]
+    try:
+        w_regs = query_mikrotik_rest(cfg["host"], cfg["port"], cfg["user"], cfg["password"], "/interface/wireless/registration-table", use_tls=cfg["use_tls"], timeout=3)
+        if isinstance(w_regs, dict): w_regs = [w_regs]
+        if w_regs and len(w_regs) > 0:
+            reg = w_regs[0]
+            sig_str = reg.get("signal-strength", "-65 dBm")
+            try:
+                sig_val = int(sig_str.split()[0].replace("dBm", ""))
+            except Exception:
+                sig_val = -65
+
+            tx_ccq = int(reg.get("tx-ccq", 95))
+            rx_ccq = int(reg.get("rx-ccq", tx_ccq))
+            snr = int(reg.get("signal-to-noise", 35))
+
+            score = max(0, min(100, int((sig_val + 95) * 2 + (tx_ccq * 0.4))))
+
+            if sig_val >= -62 and tx_ccq >= 90:
+                q_label = "عالی (تراز کامل لینک)"
+            elif sig_val >= -70 and tx_ccq >= 80:
+                q_label = "خوب (پایدار)"
+            elif sig_val >= -78:
+                q_label = "متوسط (نیاز به تراز دقیق)"
+            else:
+                q_label = "بحرانی (سیگنال بسیار ضعیف)"
+
+            return {
+                "has_wireless": True,
+                "interface": reg.get("interface", "wlan1"),
+                "mac": reg.get("mac-address", ""),
+                "signal_strength": sig_str,
+                "tx_ccq": tx_ccq,
+                "rx_ccq": rx_ccq,
+                "snr": snr,
+                "frequency": reg.get("frequency", "5 GHz"),
+                "band": reg.get("band", "5GHz-AC"),
+                "quality_label": q_label,
+                "alignment_score": score
+            }
+    except Exception:
+        pass
+
+    return {
+        "has_wireless": False,
+        "interface": "wlan1",
+        "mac": "",
+        "signal_strength": "---",
+        "tx_ccq": 0,
+        "rx_ccq": 0,
+        "snr": 0,
+        "frequency": "---",
+        "band": "---",
+        "quality_label": "عدم شناسایی سیگنال وایرلس",
+        "alignment_score": 0
+    }
+
 def ai_generate_plan_from_prompt(prompt, disc=None):
     """Synthesizes a structured Plan from user natural language prompt."""
     p_lower = prompt.lower().strip()
@@ -1821,6 +2124,22 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
 
         elif self.path == "/api/audit/logs":
             self.send_json(200, state["audit_logs"])
+
+        elif self.path == "/api/security/audit":
+            audit = get_security_audit_live()
+            self.send_json(200, audit)
+
+        elif self.path == "/api/firewall/rules":
+            rules = get_firewall_rules_live()
+            self.send_json(200, rules)
+
+        elif self.path == "/api/queues":
+            queues = get_simple_queues_live()
+            self.send_json(200, queues)
+
+        elif self.path == "/api/wireless/alignment":
+            alignment = get_wireless_alignment_live()
+            self.send_json(200, alignment)
 
         else:
             self.send_error(404)
@@ -2375,6 +2694,193 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
                 "Message": "تولید Plan زمان‌بندی بکاپ خودکار روزانه روی روتر"
             })
             self.send_json(200, {"success": True, "plan": plan})
+
+        # ----------------------------------------------------
+        # 6.14. 1-Click Security Hardening Plan (Zero-Lockout Safe)
+        # ----------------------------------------------------
+        elif self.path == "/api/security/harden":
+            now_ts = int(time.time())
+            plan = {
+                "ID": f"plan_sec_harden_{now_ts}",
+                "Name": "سپر دفاعی امنیتی و مقاوم‌سازی جامع روتر (Security Hardening)",
+                "Description": "غیرفعال‌سازی سرویس‌های ناامن (Telnet/FTP)، مسدودسازی Open DNS Resolver روی WAN و فعال‌سازی دیواره دفاعی Brute-force با حفظ قطعی دسترسی مدیریت LAN.",
+                "ProfileName": "Security-Hardening-Shield",
+                "Status": "draft",
+                "Steps": [
+                    {
+                        "ID": 1,
+                        "Action": "set",
+                        "TargetResource": "/ip/service",
+                        "NativeCommand": "/ip service set [find name=telnet] disabled=yes",
+                        "Description": "غیرفعال‌سازی سرویس متن‌واضح Telnet (پورت 23)",
+                        "RiskLevel": "low",
+                        "Applied": False
+                    },
+                    {
+                        "ID": 2,
+                        "Action": "set",
+                        "TargetResource": "/ip/service",
+                        "NativeCommand": "/ip service set [find name=ftp] disabled=yes",
+                        "Description": "غیرفعال‌سازی سرویس ناامن FTP (پورت 21)",
+                        "RiskLevel": "low",
+                        "Applied": False
+                    },
+                    {
+                        "ID": 3,
+                        "Action": "add",
+                        "TargetResource": "/ip/firewall/filter",
+                        "NativeCommand": '/ip firewall filter add chain=input in-interface-list=WAN protocol=udp dst-port=53 action=drop comment="RouterPilot-Block-WAN-DNS" place-before=0',
+                        "Description": "مسدودسازی نفوذ به DNS و جلوگیری از حملات بازتابی DNS Amplification",
+                        "RiskLevel": "medium",
+                        "Applied": False
+                    },
+                    {
+                        "ID": 4,
+                        "Action": "add",
+                        "TargetResource": "/ip/firewall/filter",
+                        "NativeCommand": '/ip firewall filter add chain=input protocol=tcp dst-port=22,8291 connection-state=new src-address-list=black_list action=drop comment="RouterPilot-Drop-BruteForce" place-before=1',
+                        "Description": "مسدودسازی خودکار مهاجمان ورود ناموفق (Brute-Force Blacklist)",
+                        "RiskLevel": "medium",
+                        "Applied": False
+                    },
+                    {
+                        "ID": 5,
+                        "Action": "add",
+                        "TargetResource": "/ip/firewall/filter",
+                        "NativeCommand": '/ip firewall filter add chain=input protocol=tcp dst-port=22,8291 connection-state=new action=add-src-to-address-list address-list=stage1 address-list-timeout=1m comment="RouterPilot-Track-BruteForce"',
+                        "Description": "رهگیری و قرنطینه آی‌پی‌های مشکوک در لایه‌های ورود Winbox و SSH",
+                        "RiskLevel": "low",
+                        "Applied": False
+                    }
+                ],
+                "RollbackSteps": [
+                    {
+                        "ID": 1,
+                        "Action": "set",
+                        "TargetResource": "/ip/service",
+                        "NativeCommand": "/ip service set [find name=telnet] disabled=no; /ip service set [find name=ftp] disabled=no",
+                        "Description": "بازگردانی سرویس‌های متوقف شده"
+                    },
+                    {
+                        "ID": 2,
+                        "Action": "remove",
+                        "TargetResource": "/ip/firewall/filter",
+                        "NativeCommand": '/ip firewall filter remove [find comment~="RouterPilot-.*"]',
+                        "Description": "حذف رول‌های سپر امنیتی فایروال"
+                    }
+                ]
+            }
+
+            state["current_plan"] = plan
+            state["audit_logs"].insert(0, {
+                "Timestamp": datetime.now().isoformat(),
+                "Category": "security",
+                "Level": "warning",
+                "Message": "تولید Plan ایمن‌سازی جامع امنیتی و فعال‌سازی سپر فایروال روتر"
+            })
+            self.send_json(200, {
+                "success": True,
+                "message": "پلن جامع ایمن‌سازی امنیتی آماده بررسی و اجرا شد.",
+                "plan": plan
+            })
+
+        # ----------------------------------------------------
+        # 6.15. Create Simple Queue (Traffic Shaper)
+        # ----------------------------------------------------
+        elif self.path == "/api/queues/create":
+            name = req_data.get("name", "").strip() or f"Limit-{int(time.time())}"
+            target = req_data.get("target", "").strip()
+            max_up = req_data.get("max_upload", "10M").strip()
+            max_down = req_data.get("max_download", "20M").strip()
+            comment = req_data.get("comment", f"RouterPilot Queue for {target}").strip()
+
+            if not target:
+                self.send_json(400, {"success": False, "error": "آدرس IP یا محدوده شبکه مقصد (Target) نمی‌تواند خالی باشد."})
+                return
+
+            now_ts = int(time.time())
+            plan = {
+                "ID": f"plan_queue_{now_ts}",
+                "Name": f"محدودیت پهنای باند: {name} ({target})",
+                "Description": f"ایجاد Simple Queue جهت کنترل سقف سرعت دانلود ({max_down}) و آپلود ({max_up}) برای تارگت {target}.",
+                "ProfileName": "Bandwidth-Queue-Shaper",
+                "Status": "draft",
+                "Steps": [
+                    {
+                        "ID": 1,
+                        "Action": "add",
+                        "TargetResource": "/queue/simple",
+                        "NativeCommand": f'/queue simple add name="{name}" target="{target}" max-limit={max_up}/{max_down} comment="{comment}"',
+                        "Description": f"افزودن صف کنترل سرعت برای {target} با سقف {max_up}/{max_down}",
+                        "RiskLevel": "low",
+                        "Applied": False
+                    }
+                ],
+                "RollbackSteps": [
+                    {
+                        "ID": 1,
+                        "Action": "remove",
+                        "TargetResource": "/queue/simple",
+                        "NativeCommand": f'/queue simple remove [find name="{name}"]',
+                        "Description": f"حذف صف کنترل پهنای باند {name}"
+                    }
+                ]
+            }
+
+            state["current_plan"] = plan
+            state["audit_logs"].insert(0, {
+                "Timestamp": datetime.now().isoformat(),
+                "Category": "queues",
+                "Level": "info",
+                "Message": f"تولید Plan صف کنترل پهنای باند برای {name} ({target} -> {max_down}/{max_up})"
+            })
+            self.send_json(200, {
+                "success": True,
+                "message": f"پلن اعمال محدودیت پهنای باند برای {name} آماده بررسی است.",
+                "plan": plan
+            })
+
+        # ----------------------------------------------------
+        # 6.16. Delete Simple Queue
+        # ----------------------------------------------------
+        elif self.path == "/api/queues/delete":
+            name = req_data.get("name", "").strip()
+            if not name:
+                self.send_json(400, {"success": False, "error": "نام صف مشخص نشده است."})
+                return
+
+            now_ts = int(time.time())
+            plan = {
+                "ID": f"plan_qdel_{now_ts}",
+                "Name": f"حذف صف پهنای باند: {name}",
+                "Description": f"حذف صف {name} از لیست صف‌های Simple Queue روتر و آزادسازی پهنای باند کلاینت.",
+                "ProfileName": "Queue-Removal",
+                "Status": "draft",
+                "Steps": [
+                    {
+                        "ID": 1,
+                        "Action": "remove",
+                        "TargetResource": "/queue/simple",
+                        "NativeCommand": f'/queue simple remove [find name="{name}"]',
+                        "Description": f"حذف صف {name} از /queue/simple",
+                        "RiskLevel": "low",
+                        "Applied": False
+                    }
+                ]
+            }
+
+            state["current_plan"] = plan
+            state["audit_logs"].insert(0, {
+                "Timestamp": datetime.now().isoformat(),
+                "Category": "queues",
+                "Level": "info",
+                "Message": f"تولید Plan حذف صف کنترل پهنای باند {name}"
+            })
+            self.send_json(200, {
+                "success": True,
+                "message": f"پلن حذف صف {name} آماده شد.",
+                "plan": plan
+            })
 
         # ----------------------------------------------------
         # 7. Real AI Diagnostics Analysis with Role Awareness

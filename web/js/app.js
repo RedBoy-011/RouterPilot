@@ -16,6 +16,10 @@ const state = {
   clients: [],
   liveTraffic: null,
   cloudInfo: null,
+  securityAudit: null,
+  firewallRules: { filters: [], nats: [] },
+  simpleQueues: [],
+  wirelessAlignment: null,
   activeQuickFilter: 'all',
   pollTimer: null,
 };
@@ -64,6 +68,12 @@ function switchTab(tabId) {
     pollLiveTraffic();
     loadTopTalkers();
   }
+  if (tabId === 'security') {
+    loadSecurityAudit();
+    loadFirewallRules();
+  }
+  if (tabId === 'queues') loadSimpleQueues();
+  if (tabId === 'tools') loadWirelessAlignment();
   if (tabId === 'audit') loadAuditLogs();
 }
 
@@ -2253,5 +2263,415 @@ async function scheduleDailyBackupJob() {
     }
   } catch (err) {
     alert(`خطا: ${err.message}`);
+  }
+}
+
+// ========================================================
+// Security Shield & Firewall Auditor (v1.7)
+// ========================================================
+
+async function loadSecurityAudit(force = false) {
+  try {
+    const res = await fetch('/api/security/audit');
+    if (!res.ok) return;
+    const data = await res.json();
+    state.securityAudit = data;
+    renderSecurityAuditView(data);
+  } catch (err) {
+    console.error('Failed to load security audit:', err);
+  }
+}
+
+function renderSecurityAuditView(data) {
+  if (!data) return;
+
+  const scoreEl = document.getElementById('kpi-security-score');
+  const gradeEl = document.getElementById('kpi-security-grade');
+  const vulnCountEl = document.getElementById('kpi-security-vuln-count');
+  const vulnsList = document.getElementById('security-vulns-list');
+  const passedList = document.getElementById('security-passed-list');
+  const badgeEl = document.getElementById('security-vuln-badge');
+
+  if (scoreEl) {
+    scoreEl.innerText = `${data.score} / ۱۰۰`;
+    scoreEl.style.color = data.score >= 85 ? '#10b981' : (data.score >= 65 ? '#f59e0b' : '#ef4444');
+  }
+
+  if (gradeEl) {
+    gradeEl.innerText = `رتبه امنیتی: ${data.grade}`;
+  }
+
+  const vulns = data.vulnerabilities || [];
+  if (vulnCountEl) {
+    vulnCountEl.innerText = vulns.length;
+  }
+  if (badgeEl) {
+    badgeEl.innerText = vulns.length > 0 ? `${vulns.length} آسیب‌پذیری شناسایی شد` : 'کاملاً ایمن';
+    badgeEl.style.color = vulns.length > 0 ? '#ef4444' : '#10b981';
+  }
+
+  if (vulnsList) {
+    if (vulns.length === 0) {
+      vulnsList.innerHTML = `
+        <div style="text-align:center; padding:24px; color:#10b981; font-weight:600;">
+          🎉 هیچ آسیب‌پذیری بحرانی در فایروال و سرویس‌های روتر کشف نشد.
+        </div>
+      `;
+    } else {
+      vulnsList.innerHTML = vulns.map(v => {
+        const isCrit = v.severity === 'critical';
+        const isHigh = v.severity === 'high';
+        const color = isCrit ? '#ef4444' : (isHigh ? '#f97316' : '#f59e0b');
+        return `
+          <div style="background:rgba(255,255,255,0.03); border:1px solid ${color}40; border-radius:10px; padding:14px; border-right:4px solid ${color};">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <strong style="color:#fff; font-size:0.92rem;">${escapeHtml(v.title)}</strong>
+              <span class="status-badge" style="color:${color}; font-size:0.72rem; padding:2px 8px;">
+                ${v.severity.toUpperCase()}
+              </span>
+            </div>
+            <p style="font-size:0.83rem; color:var(--text-muted); line-height:1.5; margin-bottom:8px;">
+              ${escapeHtml(v.description)}
+            </p>
+            <div style="background:rgba(0,0,0,0.3); border-radius:6px; padding:6px 10px; font-family:monospace; font-size:0.75rem; color:#38bdf8;" dir="ltr">
+              💡 راه‌حل: ${escapeHtml(v.remediation)}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+  }
+
+  if (passedList) {
+    const passed = data.passed_checks || [];
+    if (passed.length === 0) {
+      passedList.innerHTML = `<div style="text-align:center; padding:18px; color:var(--text-muted);">موردی ثبت نشده است.</div>`;
+    } else {
+      passedList.innerHTML = passed.map(p => `
+        <div style="display:flex; align-items:flex-start; gap:8px; font-size:0.85rem; color:#10b981; padding:8px 10px; background:rgba(16,185,129,0.05); border-radius:8px;">
+          <span>✓</span>
+          <span style="color:#e2e8f0;">${escapeHtml(p)}</span>
+        </div>
+      `).join('');
+    }
+  }
+}
+
+async function loadFirewallRules() {
+  try {
+    const res = await fetch('/api/firewall/rules');
+    if (!res.ok) return;
+    const data = await res.json();
+    state.firewallRules = data;
+    renderFirewallRulesView(data);
+  } catch (err) {
+    console.error('Failed to load firewall rules:', err);
+  }
+}
+
+function renderFirewallRulesView(data) {
+  if (!data) return;
+
+  const filters = data.filters || [];
+  const nats = data.nats || [];
+
+  const filterCountEl = document.getElementById('kpi-security-filter-count');
+  const natCountEl = document.getElementById('kpi-security-nat-count');
+  if (filterCountEl) filterCountEl.innerText = filters.length;
+  if (natCountEl) natCountEl.innerText = nats.length;
+
+  const tbodyFilters = document.getElementById('firewall-filters-table-body');
+  if (tbodyFilters) {
+    if (filters.length === 0) {
+      tbodyFilters.innerHTML = `
+        <tr>
+          <td colspan="9" style="text-align:center; padding:24px; color:var(--text-muted);">
+            رول فیلتری در روتر تعریف نشده است (وضعیت پیش‌فرض باز).
+          </td>
+        </tr>
+      `;
+    } else {
+      tbodyFilters.innerHTML = filters.map(r => `
+        <tr style="${r.disabled ? 'opacity:0.4;' : ''}">
+          <td class="font-mono">${r.id}</td>
+          <td><span class="status-badge font-mono">${r.chain}</span></td>
+          <td>
+            <span class="status-badge" style="${r.action === 'drop' ? 'color:#ef4444; background:rgba(239,68,68,0.1);' : 'color:#10b981; background:rgba(16,185,129,0.1);'}">
+              ${r.action}
+            </span>
+          </td>
+          <td class="font-mono">${r.protocol || 'any'}</td>
+          <td class="font-mono">${r.dst_port || 'all'}</td>
+          <td class="font-mono">${r.in_interface || r.out_interface || 'any'}</td>
+          <td class="font-mono">${r.bytes.toLocaleString()} B</td>
+          <td class="font-mono">${r.packets.toLocaleString()}</td>
+          <td style="font-size:0.8rem; color:var(--text-muted);">${escapeHtml(r.comment || '---')}</td>
+        </tr>
+      `).join('');
+    }
+  }
+
+  const tbodyNats = document.getElementById('firewall-nats-table-body');
+  if (tbodyNats) {
+    if (nats.length === 0) {
+      tbodyNats.innerHTML = `
+        <tr>
+          <td colspan="9" style="text-align:center; padding:24px; color:var(--text-muted);">
+            قانونی در جدول NAT تعریف نشده است.
+          </td>
+        </tr>
+      `;
+    } else {
+      tbodyNats.innerHTML = nats.map(r => `
+        <tr style="${r.disabled ? 'opacity:0.4;' : ''}">
+          <td class="font-mono">${r.id}</td>
+          <td><span class="status-badge font-mono">${r.chain}</span></td>
+          <td>
+            <span class="status-badge" style="color:#38bdf8; background:rgba(56,189,248,0.1);">
+              ${r.action}
+            </span>
+          </td>
+          <td class="font-mono">${r.protocol || 'any'}</td>
+          <td class="font-mono">${r.dst_port || '---'}</td>
+          <td class="font-mono">${r.to_addresses ? `${r.to_addresses}:${r.to_ports}` : '---'}</td>
+          <td class="font-mono">${r.bytes.toLocaleString()} B</td>
+          <td class="font-mono">${r.packets.toLocaleString()}</td>
+          <td style="font-size:0.8rem; color:var(--text-muted);">${escapeHtml(r.comment || '---')}</td>
+        </tr>
+      `).join('');
+    }
+  }
+}
+
+function showFirewallSubTab(subTab) {
+  const btnFilters = document.getElementById('btn-fw-tab-filters');
+  const btnNats = document.getElementById('btn-fw-tab-nats');
+  const divFilters = document.getElementById('fw-subtab-filters');
+  const divNats = document.getElementById('fw-subtab-nats');
+
+  if (subTab === 'filters') {
+    if (btnFilters) { btnFilters.className = 'btn btn-primary'; }
+    if (btnNats) { btnNats.className = 'btn btn-outline'; }
+    if (divFilters) divFilters.style.display = 'block';
+    if (divNats) divNats.style.display = 'none';
+  } else {
+    if (btnFilters) { btnFilters.className = 'btn btn-outline'; }
+    if (btnNats) { btnNats.className = 'btn btn-primary'; }
+    if (divFilters) divFilters.style.display = 'none';
+    if (divNats) divNats.style.display = 'block';
+  }
+}
+
+async function applySecurityHardening() {
+  try {
+    const res = await fetch('/api/security/harden', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+    if (data.success) {
+      state.currentPlan = data.plan;
+      renderPlanView(data.plan);
+      switchTab('plan');
+      alert('🛡️ Plan ایمن‌سازی جامع امنیتی و فعال‌سازی سپر دفاعی روتر آماده بررسی و اجرا شد.');
+    }
+  } catch (err) {
+    alert(`خطا: ${err.message}`);
+  }
+}
+
+// ========================================================
+// Simple Queues & Traffic Shaper (v1.7)
+// ========================================================
+
+async function loadSimpleQueues(force = false) {
+  try {
+    const res = await fetch('/api/queues');
+    if (!res.ok) return;
+    const data = await res.json();
+    state.simpleQueues = data;
+    renderSimpleQueuesView(data);
+  } catch (err) {
+    console.error('Failed to load simple queues:', err);
+  }
+}
+
+function renderSimpleQueuesView(queues) {
+  const totalEl = document.getElementById('kpi-queues-total');
+  const targetsEl = document.getElementById('kpi-queues-targets');
+  const maxDownEl = document.getElementById('kpi-queues-max-down');
+  const droppedEl = document.getElementById('kpi-queues-dropped');
+  const tbody = document.getElementById('simple-queues-table-body');
+
+  if (totalEl) totalEl.innerText = queues ? queues.length : 0;
+  if (targetsEl) targetsEl.innerText = queues ? queues.filter(q => !q.disabled).length : 0;
+
+  if (queues && queues.length > 0) {
+    if (maxDownEl) maxDownEl.innerText = queues[0].max_download;
+    const totalDropped = queues.reduce((acc, q) => {
+      const parts = (q.dropped || '0/0').split('/');
+      return acc + (parseInt(parts[0]) || 0) + (parseInt(parts[1]) || 0);
+    }, 0);
+    if (droppedEl) droppedEl.innerText = totalDropped.toLocaleString();
+  } else {
+    if (maxDownEl) maxDownEl.innerText = '---';
+    if (droppedEl) droppedEl.innerText = '0';
+  }
+
+  if (!tbody) return;
+
+  if (!queues || queues.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="9" style="text-align:center; padding:32px; color:var(--text-muted);">
+          در حال حاضر هیچ صف Simple Queue روی روتر تنظیم نشده است. می‌توانید با دکمه بالا یک محدودیت جدید تعریف کنید.
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = queues.map(q => `
+    <tr style="${q.disabled ? 'opacity:0.4;' : ''}">
+      <td><strong style="color:#fff;">${escapeHtml(q.name)}</strong></td>
+      <td class="font-mono" style="color:var(--primary); font-weight:600;">${q.target}</td>
+      <td class="font-mono" style="color:#f59e0b;">${q.max_upload}</td>
+      <td class="font-mono" style="color:#10b981; font-weight:700;">${q.max_download}</td>
+      <td class="font-mono">${q.rate}</td>
+      <td class="font-mono" style="color:${q.dropped !== '0/0' ? '#ef4444' : 'inherit'};">${q.dropped}</td>
+      <td>
+        <span class="status-badge" style="${q.disabled ? 'color:#ef4444;' : 'color:#10b981;'}">
+          ${q.disabled ? 'غیرفعال' : 'فعال'}
+        </span>
+      </td>
+      <td style="font-size:0.8rem; color:var(--text-muted);">${escapeHtml(q.comment || '---')}</td>
+      <td>
+        <button class="btn btn-outline" style="color:#ef4444; border-color:rgba(239,68,68,0.3); padding:4px 8px; font-size:0.75rem;" onclick="deleteQueue('${escapeHtml(q.name)}')">
+          🗑️ حذف
+        </button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function filterQueuesTable(query) {
+  const qLower = query.toLowerCase().trim();
+  const rows = document.querySelectorAll('#simple-queues-table-body tr');
+  rows.forEach(r => {
+    const text = r.innerText.toLowerCase();
+    r.style.display = text.includes(qLower) ? '' : 'none';
+  });
+}
+
+function openAddQueueModal() {
+  const modal = document.getElementById('modal-add-queue');
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeAddQueueModal() {
+  const modal = document.getElementById('modal-add-queue');
+  if (modal) modal.style.display = 'none';
+}
+
+async function submitCreateQueue() {
+  const name = document.getElementById('queue-name-input')?.value.trim();
+  const target = document.getElementById('queue-target-input')?.value.trim();
+  const maxUp = document.getElementById('queue-max-up-select')?.value;
+  const maxDown = document.getElementById('queue-max-down-select')?.value;
+  const comment = document.getElementById('queue-comment-input')?.value.trim();
+
+  closeAddQueueModal();
+
+  try {
+    const res = await fetch('/api/queues/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: name,
+        target: target,
+        max_upload: maxUp,
+        max_download: maxDown,
+        comment: comment
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      state.currentPlan = data.plan;
+      renderPlanView(data.plan);
+      switchTab('plan');
+      alert(`⚡ Plan ایجاد صف محدودیت سرعت برای ${name} (${target}) آماده شد.`);
+    } else {
+      alert(`خطا: ${data.error || 'عملیات ناموفق بود'}`);
+    }
+  } catch (err) {
+    alert(`خطا در ارسال: ${err.message}`);
+  }
+}
+
+async function deleteQueue(queueName) {
+  if (!confirm(`آیا از حذف صف کنترل سرعت «${queueName}» اطمینان دارید؟`)) return;
+
+  try {
+    const res = await fetch('/api/queues/delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: queueName })
+    });
+    const data = await res.json();
+    if (data.success) {
+      state.currentPlan = data.plan;
+      renderPlanView(data.plan);
+      switchTab('plan');
+      alert(`🗑️ Plan حذف صف ${queueName} آماده شد.`);
+    }
+  } catch (err) {
+    alert(`خطا: ${err.message}`);
+  }
+}
+
+// ========================================================
+// Wireless Antenna Alignment & Signal Tuner (v1.7)
+// ========================================================
+
+async function loadWirelessAlignment(force = false) {
+  try {
+    const res = await fetch('/api/wireless/alignment');
+    if (!res.ok) return;
+    const data = await res.json();
+    state.wirelessAlignment = data;
+    renderWirelessAlignmentView(data);
+  } catch (err) {
+    console.error('Failed to load wireless alignment:', err);
+  }
+}
+
+function renderWirelessAlignmentView(data) {
+  if (!data) return;
+
+  const sigEl = document.getElementById('wireless-signal-val');
+  const ccqEl = document.getElementById('wireless-ccq-val');
+  const snrEl = document.getElementById('wireless-snr-val');
+  const freqEl = document.getElementById('wireless-freq-val');
+  const macEl = document.getElementById('wireless-mac-val');
+  const ifaceEl = document.getElementById('wireless-iface-val');
+  const scoreLbl = document.getElementById('wireless-score-label');
+  const scoreBar = document.getElementById('wireless-score-bar');
+  const adviceEl = document.getElementById('wireless-quality-advice');
+  const pillEl = document.getElementById('wireless-status-pill');
+
+  if (sigEl) sigEl.innerText = data.signal_strength || '---';
+  if (ccqEl) ccqEl.innerText = `${data.tx_ccq}% / ${data.rx_ccq}%`;
+  if (snrEl) snrEl.innerText = `${data.snr} dB`;
+  if (freqEl) freqEl.innerText = data.frequency || '---';
+  if (macEl) macEl.innerText = data.mac || '---';
+  if (ifaceEl) ifaceEl.innerText = data.interface || 'wlan1';
+
+  if (scoreLbl) scoreLbl.innerText = `${data.alignment_score}%`;
+  if (scoreBar) scoreBar.style.width = `${data.alignment_score}%`;
+  if (adviceEl) adviceEl.innerText = data.quality_label || '---';
+
+  if (pillEl) {
+    pillEl.innerText = data.has_wireless ? 'رادیو فعال 📡' : 'بدون رادیو وایرلس';
+    pillEl.style.color = data.has_wireless ? '#10b981' : '#f59e0b';
   }
 }
