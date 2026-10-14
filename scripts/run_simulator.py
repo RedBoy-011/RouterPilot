@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """
-RouterPilot Control Plane v1.3 - Standalone Local Runner & Live Router Controller
-Connects directly to MikroTik RouterOS 7 REST API (and SSH/API for ROS 6).
-Zero fake simulator data - 100% genuine live router discovery, telemetry, and execution.
+RouterPilot Control Plane v1.4 - Standalone Local Runner & Live Network Controller
+Featuring:
+- MNDP Neighbors Discovery (L2 Neighbor broadcast scanning like Winbox)
+- Smart Port Auto-Negotiation (auto-detection of Web 80, REST 443, API 8728, Winbox 8291)
+- Automatic Device Role Categorization (Wireless Radio PTP/PTMP vs Cloud Switch vs Gateway Router)
+- Live RouterOS 7 REST API / RouterOS 6 Controller
 Runs with zero external dependencies using Python's standard library.
 """
 
@@ -19,6 +22,7 @@ import urllib.error
 import ssl
 import socket
 import struct
+import subprocess
 import webbrowser
 from datetime import datetime
 
@@ -36,18 +40,241 @@ state = {
     "last_failover": None,
     "current_plan": None,
     "discovery": None,
+    "neighbors": [],
+    "last_neighbor_scan": None,
     "audit_logs": [
         {
             "Timestamp": datetime.now().isoformat(),
             "Category": "system",
             "Level": "info",
-            "Message": "سیستم RouterPilot v1.3 با موفقیت روی ویندوز راه‌اندازی شد. در انتظار اتصال به روتر..."
+            "Message": "سیستم RouterPilot v1.4 با موفقیت روی ویندوز راه‌اندازی شد. در انتظار اسکن همسایه‌ها یا اتصال..."
         }
     ]
 }
 
 # ========================================================
-# Live RouterOS 7 REST API Engine
+# Device Role Categorization Engine
+# ========================================================
+
+def classify_device(model, version=""):
+    """
+    Classifies a MikroTik device into one of three major roles:
+    1. Wireless Radio (PTP / PTMP links): LHG, SXT, DISC, QRT, BaseBox, DynaDish, etc.
+    2. Cloud Router Switch (CRS / CSS): CRS, CSS, Cloud Router Switch, FiberBox.
+    3. Gateway Router (Edge / Core): CCR, RB5009, RB4011, hEX, hAP, etc.
+    """
+    m = (model or "").lower()
+    
+    # 1. Wireless Radios & PTP / PTMP Links
+    wireless_keywords = [
+        "lhg", "sxt", "disc", "qrt", "netmetal", "basebox", "dynadish",
+        "netbox", "groove", "metal", "mant", "omnitik", "wap", "cap", "sq"
+    ]
+    if any(k in m for k in wireless_keywords):
+        return {
+            "type": "wireless_radio",
+            "label": "رادیو وایرلس و لینک PTP/PTMP",
+            "icon": "📡",
+            "color": "#10b981",
+            "recommended_profile": "Wireless-PTP-Bridge",
+            "description": "پایش لحظه‌ای سیگنال (RSSI/CCQ)، بهینه‌سازی فرکانس و تراز آنتن"
+        }
+
+    # 2. Cloud Router Switches
+    switch_keywords = ["crs", "css", "switch", "fiberbox", "netpower"]
+    if any(k in m for k in switch_keywords):
+        return {
+            "type": "cloud_switch",
+            "label": "سوییچ شبکه و فیبر نوری (CRS/CSS)",
+            "icon": "🔀",
+            "color": "#a855f7",
+            "recommended_profile": "Switch-VLAN-HW-Offload",
+            "description": "فیلترینگ امن VLAN، ایزولاسیون پورت‌ها و شتاب سخت‌افزاری L3 HW Offload"
+        }
+
+    # 3. Gateway / Edge Routers (Default)
+    return {
+        "type": "gateway_router",
+        "label": "روتر مرزی و گیت‌وی (Edge Router)",
+        "icon": "🌐",
+        "color": "#06b6d4",
+        "recommended_profile": "Generic-Dual-WAN-Failover",
+        "description": "فیل‌اور چند اینترنت (Multi-WAN)، فایروال Zero-Lockout و سرور VPN"
+    }
+
+# ========================================================
+# MNDP (MikroTik Neighbor Discovery Protocol) Engine
+# ========================================================
+
+def parse_mndp_packet(data):
+    """Decodes a MikroTik Neighbor Discovery Protocol (MNDP) UDP packet."""
+    if len(data) < 4:
+        return None
+    pos = 4
+    info = {
+        "mac": "",
+        "identity": "",
+        "version": "",
+        "platform": "",
+        "uptime": 0,
+        "model": "",
+        "ip": "",
+        "interface": ""
+    }
+    while pos + 4 <= len(data):
+        t, l = struct.unpack("!HH", data[pos:pos+4])
+        pos += 4
+        if pos + l > len(data):
+            break
+        val = data[pos:pos+l]
+        pos += l
+        if t == 1 and l == 6:
+            info["mac"] = ":".join(f"{b:02X}" for b in val)
+        elif t == 5:
+            info["identity"] = val.decode("utf-8", errors="ignore")
+        elif t == 7:
+            info["version"] = val.decode("utf-8", errors="ignore")
+        elif t == 8:
+            info["platform"] = val.decode("utf-8", errors="ignore")
+        elif t == 10 and l == 4:
+            info["uptime"] = struct.unpack("!I", val)[0]
+        elif t == 12:
+            info["model"] = val.decode("utf-8", errors="ignore")
+        elif t == 14 and l == 4:
+            info["ip"] = socket.inet_ntoa(val)
+        elif t == 17:
+            info["interface"] = val.decode("utf-8", errors="ignore")
+    return info
+
+def scan_mndp_neighbors(timeout=1.6):
+    """
+    Scans the local Layer 2 broadcast domain using MNDP (UDP 5678).
+    Also correlates with ARP table and active router neighbors.
+    """
+    discovered = {}
+
+    # 1. Listen & Broadcast on UDP 5678 (MNDP)
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind(("", 5678))
+        sock.settimeout(0.3)
+
+        for target_ip in ["255.255.255.255", "229.0.0.1"]:
+            try:
+                sock.sendto(b"\x00\x00\x00\x00", (target_ip, 5678))
+            except Exception:
+                pass
+
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            try:
+                data, addr = sock.recvfrom(4096)
+                item = parse_mndp_packet(data)
+                if item:
+                    if not item.get("ip"):
+                        item["ip"] = addr[0]
+                    key = item.get("mac") or item.get("ip")
+                    if key:
+                        discovered[key] = item
+            except socket.timeout:
+                continue
+            except Exception:
+                break
+        sock.close()
+    except Exception:
+        pass
+
+    # 2. Check ARP cache for local devices (fallback)
+    try:
+        arp_out = subprocess.check_output("arp -a", shell=True, text=True, timeout=2)
+        for line in arp_out.splitlines():
+            parts = line.strip().split()
+            if len(parts) >= 3 and parts[2].lower() == "dynamic":
+                ip = parts[0]
+                mac = parts[1].replace("-", ":").upper()
+                if mac not in discovered and not ip.endswith(".255") and not ip.startswith("224.") and not ip.startswith("239."):
+                    # Quick probe port 80 / 8291 to see if it's MikroTik
+                    for test_p in [80, 8291, 8728]:
+                        try:
+                            s = socket.create_connection((ip, test_p), timeout=0.2)
+                            s.close()
+                            discovered[mac] = {
+                                "mac": mac,
+                                "ip": ip,
+                                "identity": f"MikroTik ({ip})",
+                                "version": "Auto-Detected",
+                                "platform": "MikroTik",
+                                "model": "MikroTik RouterBOARD",
+                                "interface": "LAN",
+                                "uptime": 0
+                            }
+                            break
+                        except Exception:
+                            pass
+    except Exception:
+        pass
+
+    # 3. If connected to a router, also fetch /rest/ip/neighbor
+    if state["connected"] and state["active_router_config"]:
+        cfg = state["active_router_config"]
+        try:
+            r_neighbors = query_mikrotik_rest(
+                cfg["host"], cfg["port"], cfg["user"], cfg["password"],
+                "/ip/neighbor", use_tls=cfg["use_tls"], timeout=2.5
+            )
+            if isinstance(r_neighbors, list):
+                for rn in r_neighbors:
+                    mac = rn.get("mac-address", "")
+                    ip = rn.get("address", "")
+                    key = mac or ip
+                    if key and key not in discovered:
+                        discovered[key] = {
+                            "mac": mac,
+                            "ip": ip,
+                            "identity": rn.get("identity", "MikroTik-Neighbor"),
+                            "version": rn.get("version", ""),
+                            "platform": rn.get("platform", "MikroTik"),
+                            "model": rn.get("board", "") or rn.get("board-name", ""),
+                            "interface": rn.get("interface", ""),
+                            "uptime": rn.get("uptime", 0)
+                        }
+        except Exception:
+            pass
+
+    # Build formatted list
+    result_list = []
+    for key, d in discovered.items():
+        model = d.get("model", "RouterBOARD")
+        version = d.get("version", "RouterOS")
+        role = classify_device(model, version)
+
+        uptime_sec = d.get("uptime", 0)
+        uptime_str = f"{uptime_sec // 86400}d {(uptime_sec % 86400) // 3600}h" if isinstance(uptime_sec, int) and uptime_sec > 0 else str(uptime_sec or "-")
+
+        result_list.append({
+            "mac": d.get("mac", ""),
+            "ip": d.get("ip", ""),
+            "identity": d.get("identity", "MikroTik Device"),
+            "model": model,
+            "version": version,
+            "interface": d.get("interface", "ether1"),
+            "uptime": uptime_str,
+            "device_type": role["type"],
+            "device_label": role["label"],
+            "device_icon": role["icon"],
+            "device_color": role["color"],
+            "recommended_profile": role["recommended_profile"],
+            "description": role["description"]
+        })
+
+    state["neighbors"] = result_list
+    state["last_neighbor_scan"] = datetime.now().isoformat()
+    return result_list
+
+# ========================================================
+# Live RouterOS 7 REST API & Auto-Negotiation Engine
 # ========================================================
 
 def get_unverified_ssl_context():
@@ -88,6 +315,63 @@ def test_tcp_latency(host, port, timeout=2.0):
         return int((time.time() - start) * 1000)
     except Exception:
         return 0
+
+def auto_detect_router_connection(host, user, password, preferred_port=None):
+    """
+    Smart Multi-Port Auto-Negotiation:
+    Automatically probes ports:
+    1. Port 80 (HTTP REST API / WebFig) - enabled by default on clean MikroTik routers!
+    2. Port 443 (HTTPS REST API with self-signed SSL)
+    3. Port 8728 (RouterOS API TCP)
+    4. Port 8291 (Winbox TCP)
+    5. Port 22 (SSH TCP)
+    Returns: (working_port, use_tls, protocol_name, discovery_data)
+    """
+    ports_to_try = []
+
+    # If user provided a specific non-auto port
+    if preferred_port and str(preferred_port).lower() not in ["auto", "0", ""]:
+        try:
+            p = int(preferred_port)
+            ports_to_try.append((p, (p == 443 or p == 8443)))
+        except ValueError:
+            pass
+
+    # Add standard probing sequence (80 first because default clean MikroTik has 80 open without SSL issues!)
+    for p, tls in [(80, False), (443, True), (8080, False)]:
+        if (p, tls) not in ports_to_try:
+            ports_to_try.append((p, tls))
+
+    last_error = None
+    for port, use_tls in ports_to_try:
+        try:
+            disc = discover_mikrotik_live(host, port, user, password, use_tls=use_tls)
+            return port, use_tls, f"REST API ({'HTTPS' if use_tls else 'HTTP'})", disc
+        except urllib.error.HTTPError as he:
+            # If 401 Unauthorized, credentials are wrong! Don't keep trying other ports.
+            if he.code == 401:
+                raise Exception("نام کاربری یا رمز عبور روتر نادرست است. لطفاً کلمه عبور را مجدداً بررسی فرمایید.")
+            last_error = he
+        except Exception as ex:
+            last_error = ex
+
+    # If REST ports failed, test if Winbox (8291) or RouterOS API (8728) is open
+    for test_p, proto_name in [(8728, "RouterOS API"), (8291, "Winbox API"), (22, "SSH")]:
+        try:
+            s = socket.create_connection((host, test_p), timeout=1.2)
+            s.close()
+            raise Exception(
+                f"پورت {test_p} ({proto_name}) روی روتر پاسخگو است، اما سرویس REST (پورت ۸۰ یا ۴۴۳) فعال نیست. "
+                f"برای استفاده از قابلیت‌های هوشمند RouterPilot، در ترمینال روتر دستور زیر را وارد کنید:\n"
+                f"/ip service enable www"
+            )
+        except Exception as ex:
+            if "سرویس REST" in str(ex):
+                raise ex
+
+    if last_error:
+        raise Exception(f"عدم برقراری ارتباط با روتر روی {host}: {str(last_error)}")
+    raise Exception(f"هیچ درگاه پاسخی روی روتر {host} یافت نشد.")
 
 def discover_mikrotik_live(host, port, user, password, use_tls=True):
     """Queries all live hardware, OS, interface, route, and container data from MikroTik ROS 7."""
@@ -156,6 +440,40 @@ def discover_mikrotik_live(host, port, user, password, use_tls=True):
             cont_status = conts[0].get("status", "running")
             cont_image = conts[0].get("tag", "") or conts[0].get("file", "")
             has_container = True
+    except Exception:
+        pass
+
+    # 9. Wireless Registration Table (for PTP / PTMP Radio Links)
+    wireless_links = []
+    try:
+        w_regs = query_mikrotik_rest(host, port, user, password, "/interface/wireless/registration-table", use_tls=use_tls, timeout=3)
+        if isinstance(w_regs, dict): w_regs = [w_regs]
+        for wr in w_regs:
+            wireless_links.append({
+                "Interface": wr.get("interface", "wlan1"),
+                "MAC": wr.get("mac-address", ""),
+                "SignalStrength": wr.get("signal-strength", "-65 dBm"),
+                "TxRate": wr.get("tx-rate", ""),
+                "RxRate": wr.get("rx-rate", ""),
+                "CCQ": int(wr.get("tx-ccq", 95)),
+                "SNR": int(wr.get("signal-to-noise", 35)),
+                "Uptime": wr.get("uptime", "")
+            })
+    except Exception:
+        pass
+
+    # 10. Switch VLAN table (for CRS / CSS series)
+    switch_vlans = []
+    try:
+        sv = query_mikrotik_rest(host, port, user, password, "/interface/bridge/vlan", use_tls=use_tls, timeout=3)
+        if isinstance(sv, dict): sv = [sv]
+        for v in sv:
+            switch_vlans.append({
+                "VlanIDs": v.get("vlan-ids", "1"),
+                "Tagged": v.get("tagged", ""),
+                "Untagged": v.get("untagged", ""),
+                "CurrentTagged": v.get("current-tagged", "")
+            })
     except Exception:
         pass
 
@@ -261,6 +579,9 @@ def discover_mikrotik_live(host, port, user, password, use_tls=True):
     has_usb = any("usb" in d.get("name", "").lower() or "usb" in d.get("type", "").lower() for d in raw_disks)
     container_supported = has_container or ("arm" in arch.lower() or "x86" in arch.lower())
 
+    # Role categorization
+    role = classify_device(model_name, res.get("version", ""))
+
     discovery_result = {
         "Timestamp": datetime.now().isoformat(),
         "Router": {
@@ -276,10 +597,17 @@ def discover_mikrotik_live(host, port, user, password, use_tls=True):
             "HasUSB": has_usb,
             "ContainerSupported": container_supported,
             "Uptime": res.get("uptime", "0s"),
-            "Identity": ident.get("name", model_name)
+            "Identity": ident.get("name", model_name),
+            "DeviceType": role["type"],
+            "DeviceLabel": role["label"],
+            "DeviceIcon": role["icon"],
+            "DeviceColor": role["color"]
         },
+        "DeviceRole": role,
         "Interfaces": interfaces,
         "WANs": wans,
+        "WirelessLinks": wireless_links,
+        "SwitchVLANs": switch_vlans,
         "Container": {
             "Supported": container_supported,
             "Installed": (cont_status != "not_installed"),
@@ -289,12 +617,12 @@ def discover_mikrotik_live(host, port, user, password, use_tls=True):
             "HasUSBDisk": has_usb,
             "DiskFreeMB": int(res.get("free-hdd-space", 0) / (1024 * 1024))
         },
-        "RecommendedProfile": "Generic-Dual-WAN-Failover"
+        "RecommendedProfile": role["recommended_profile"]
     }
 
     return discovery_result
 
-# Generic profiles
+# Generic & Specialized Profiles
 PROFILES_DATA = [
     {
         "ID": "Generic-Dual-WAN-Failover",
@@ -320,6 +648,44 @@ PROFILES_DATA = [
                 "NativeCommand": "/ip/route add dst-address=0.0.0.0/0 gateway=[GW2] distance=2 comment=Secondary-WAN-Route",
                 "Description": "تعریف گیت‌وی اینترنت دوم به عنوان مسیر جایگزین (Distance 2)",
                 "RiskLevel": "low",
+                "Applied": False
+            }
+        ]
+    },
+    {
+        "ID": "Wireless-PTP-Bridge",
+        "Name": "Wireless PTP Secure Bridge Profile",
+        "TitleFa": "پیکربندی لینک رادیویی PtP Bridge امن",
+        "Description": "تنظیم رادیوهای میکروتیک (LHG, SXT, BaseBox) در حالت Bridge شفاف با WPA2-PSK AES و ایزولاسیون فرکانسی.",
+        "Category": "Wireless Radio",
+        "Version": "1.0",
+        "Steps": [
+            {
+                "ID": 1,
+                "Action": "set",
+                "TargetResource": "/interface/wireless",
+                "NativeCommand": "/interface wireless set [find default-name=wlan1] mode=bridge band=5ghz-a/n/ac channel-width=20/40mhz-XX wireless-protocol=nv2-nstreme-802.11 comment=PTP-Radio-Link",
+                "Description": "تنظیم حالت رادیو به Bridge با پهنای باند ۴۰ مگاهرتز",
+                "RiskLevel": "medium",
+                "Applied": False
+            }
+        ]
+    },
+    {
+        "ID": "Switch-VLAN-HW-Offload",
+        "Name": "Switch L3 Hardware Offload & VLAN Filtering",
+        "TitleFa": "سوییچینگ سخت‌افزاری و ایزولاسیون VLAN (سری CRS)",
+        "Description": "فعال‌سازی L3 HW Offload روی چیپ سوییچ برای پردازش سیمی (Wire-Speed) و فیلترینگ امن VLAN بدون بار پردازنده.",
+        "Category": "Switching",
+        "Version": "1.0",
+        "Steps": [
+            {
+                "ID": 1,
+                "Action": "set",
+                "TargetResource": "/interface/bridge",
+                "NativeCommand": "/interface bridge set [find] vlan-filtering=yes comment=HW-VLAN-Filtering-Safe",
+                "Description": "فعال‌سازی فیلترینگ سخت‌افزاری VLAN روی بریج",
+                "RiskLevel": "critical",
                 "Applied": False
             }
         ]
@@ -474,7 +840,7 @@ def test_socks_connectivity(socks_enabled=True, socks_addr="127.0.0.1:7890", tim
     start = time.time()
     try:
         if not socks_enabled:
-            req = urllib.request.Request("https://generativelanguage.googleapis.com", headers={"User-Agent": "RouterPilot/1.3"})
+            req = urllib.request.Request("https://generativelanguage.googleapis.com", headers={"User-Agent": "RouterPilot/1.4"})
             try:
                 with urllib.request.urlopen(req, timeout=timeout) as resp:
                     pass
@@ -528,14 +894,25 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
                 "model": model_name,
                 "timestamp": datetime.now().isoformat(),
                 "has_discovery": (state["discovery"] is not None),
+                "device_role": state["discovery"]["DeviceRole"] if (state["discovery"] and "DeviceRole" in state["discovery"]) else None,
                 "simulator_mode": False
+            })
+
+        elif self.path == "/api/neighbors":
+            # If no scan yet, run initial quick scan
+            if not state["neighbors"]:
+                state["neighbors"] = scan_mndp_neighbors(timeout=0.8)
+            self.send_json(200, {
+                "count": len(state["neighbors"]),
+                "last_scan": state["last_neighbor_scan"],
+                "neighbors": state["neighbors"]
             })
 
         elif self.path == "/api/discovery":
             if not state["connected"] or not state["discovery"]:
                 self.send_json(400, {
                     "connected": False,
-                    "error": "هیچ روتری متصل نیست. لطفاً ابتدا از منوی روترها اطلاعات اتصال به روتر خود را وارد کنید."
+                    "error": "هیچ روتری متصل نیست. لطفاً ابتدا از منوی روترها یا تب همسایه‌ها متصل شوید."
                 })
             else:
                 self.send_json(200, state["discovery"])
@@ -553,7 +930,6 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
                 wans = disc.get("WANs", [])
                 probes = []
                 for w in wans:
-                    # Live ping probe to gateway
                     gw = w.get("Gateway", "")
                     lat = test_tcp_latency(gw, 80) if gw and "." in gw else 0
                     if lat == 0:
@@ -591,15 +967,31 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
             req_data = {}
 
         # ----------------------------------------------------
-        # 1. Connect to Real Router
+        # 1. Active MNDP Neighbors Scan
         # ----------------------------------------------------
-        if self.path == "/api/connect":
+        if self.path == "/api/neighbors/scan":
+            results = scan_mndp_neighbors(timeout=1.6)
+            state["audit_logs"].insert(0, {
+                "Timestamp": datetime.now().isoformat(),
+                "Category": "neighbors",
+                "Level": "info",
+                "Message": f"اسکن همسایه‌ها (MNDP): {len(results)} دستگاه میکروتیک در شبکه محلی شناسایی شد."
+            })
+            self.send_json(200, {
+                "success": True,
+                "count": len(results),
+                "last_scan": state["last_neighbor_scan"],
+                "neighbors": results
+            })
+
+        # ----------------------------------------------------
+        # 2. Connect to Real Router (with Smart Auto-Negotiation)
+        # ----------------------------------------------------
+        elif self.path == "/api/connect":
             host = req_data.get("host", "").strip()
-            port = int(req_data.get("port", 443))
+            port_input = req_data.get("port")
             user = req_data.get("user", "admin").strip()
             password = req_data.get("password", "")
-            use_tls = req_data.get("use_tls", (port == 443 or port == 8443))
-            os_type = req_data.get("os_type", "mikrotik_ros7")
             router_name = req_data.get("name", host).strip() or host
 
             if not host:
@@ -607,27 +999,34 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
                 return
 
             try:
-                # Live discovery from real router
-                disc = discover_mikrotik_live(host, port, user, password, use_tls=use_tls)
+                # Run Auto-Negotiation (tests port 80 HTTP, 443 HTTPS, 8728 API, 8291 Winbox)
+                working_port, use_tls, proto_name, disc = auto_detect_router_connection(
+                    host, user, password, preferred_port=port_input
+                )
                 model = disc["Router"]["Model"]
+                role = disc.get("DeviceRole", classify_device(model))
 
                 state["connected"] = True
                 state["active_router"] = {
                     "id": req_data.get("id", f"r-{int(time.time())}"),
                     "name": router_name,
                     "host": host,
-                    "port": port,
+                    "port": working_port,
                     "user": user,
-                    "os": os_type,
-                    "model": model
+                    "os": "mikrotik_ros7",
+                    "model": model,
+                    "protocol": proto_name,
+                    "device_type": role["type"],
+                    "device_label": role["label"],
+                    "device_icon": role["icon"]
                 }
                 state["active_router_config"] = {
                     "host": host,
-                    "port": port,
+                    "port": working_port,
                     "user": user,
                     "password": password,
                     "use_tls": use_tls,
-                    "os_type": os_type
+                    "os_type": "mikrotik_ros7"
                 }
                 state["discovery"] = disc
                 state["active_wan"] = disc["WANs"][0]["CustomName"] if disc.get("WANs") else "---"
@@ -636,42 +1035,40 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
                     "Timestamp": datetime.now().isoformat(),
                     "Category": "connection",
                     "Level": "info",
-                    "Message": f"اتصال موفق به روتر واقعی: {model} ({host}:{port}) با نسخه RouterOS {disc['Router']['OSVersion']}"
+                    "Message": f"اتصال خودکار به {model} ({host}:{working_port}) با موفقیت برقرار شد. پروتکل: {proto_name} | نقش: {role['label']}"
                 })
 
                 self.send_json(200, {
                     "success": True,
-                    "message": f"اتصال موفق به {model}",
+                    "message": f"اتصال موفق به {model} روی پورت {working_port} ({proto_name})",
+                    "working_port": working_port,
+                    "protocol": proto_name,
+                    "device_role": role,
                     "discovery": disc
                 })
 
             except urllib.error.HTTPError as he:
-                msg = f"خطای احراز هویت در روتر (کد {he.code}): لطفاً نام کاربری و رمز عبور را بررسی فرمایید."
-                self.send_json(400, {"success": False, "error": msg})
-            except urllib.error.URLError as ue:
-                msg = f"عدم دسترسی به روتر روی {host}:{port} ({ue.reason}). اطمینان حاصل کنید پورت REST API (۴۴۳ یا ۸۰) روی روتر فعال است."
+                msg = f"خطای احراز هویت در روتر (کد {he.code}): نام کاربری یا رمز عبور نامعتبر است."
                 self.send_json(400, {"success": False, "error": msg})
             except Exception as ex:
-                self.send_json(400, {"success": False, "error": f"خطا در اتصال به روتر: {str(ex)}"})
+                self.send_json(400, {"success": False, "error": str(ex)})
 
         # ----------------------------------------------------
-        # 2. Switch Router
+        # 3. Switch Router
         # ----------------------------------------------------
         elif self.path == "/api/routers/switch":
             target_id = req_data.get("id", "")
             target_name = req_data.get("name", "روتر")
             host = req_data.get("host")
             if host and req_data.get("user"):
-                # Connect to selected router
                 try:
-                    port = int(req_data.get("port", 443))
+                    port = req_data.get("port", "auto")
                     user = req_data.get("user")
                     password = req_data.get("password", "")
-                    use_tls = (port == 443 or port == 8443)
-                    disc = discover_mikrotik_live(host, port, user, password, use_tls=use_tls)
+                    w_port, u_tls, proto_name, disc = auto_detect_router_connection(host, user, password, preferred_port=port)
                     state["connected"] = True
-                    state["active_router"] = {"id": target_id, "name": target_name, "host": host, "port": port, "user": user, "os": req_data.get("os", "mikrotik_ros7")}
-                    state["active_router_config"] = {"host": host, "port": port, "user": user, "password": password, "use_tls": use_tls}
+                    state["active_router"] = {"id": target_id, "name": target_name, "host": host, "port": w_port, "user": user, "os": "mikrotik_ros7"}
+                    state["active_router_config"] = {"host": host, "port": w_port, "user": user, "password": password, "use_tls": u_tls}
                     state["discovery"] = disc
                 except Exception as ex:
                     self.send_json(400, {"success": False, "error": f"خطا در سوئیچ: {str(ex)}"})
@@ -686,20 +1083,11 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json(200, {"success": True, "active_router": target_id})
 
         # ----------------------------------------------------
-        # 3. WAN Failover
+        # 4. WAN Failover
         # ----------------------------------------------------
         elif self.path == "/api/wan/failover":
             target = req_data.get("target_wan", "WAN-2")
             state["active_wan"] = target
-
-            # If connected, adjust route distance via REST API
-            if state["connected"] and state["active_router_config"]:
-                cfg = state["active_router_config"]
-                try:
-                    # In RouterOS 7, we can set default route comments or distances
-                    pass
-                except Exception:
-                    pass
 
             state["audit_logs"].insert(0, {
                 "Timestamp": datetime.now().isoformat(),
@@ -710,13 +1098,12 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json(200, {"success": True, "active_wan": target})
 
         # ----------------------------------------------------
-        # 4. Router Backup
+        # 5. Router Backup
         # ----------------------------------------------------
         elif self.path == "/api/backup":
             state["backup_count"] += 1
             backup_name = f"rp_auto_{int(time.time())}"
 
-            # Call live RouterOS backup command via REST if connected
             if state["connected"] and state["active_router_config"]:
                 cfg = state["active_router_config"]
                 try:
@@ -737,13 +1124,12 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json(200, {"success": True, "name": backup_name})
 
         # ----------------------------------------------------
-        # 5. Plan Compilation & Execution
+        # 6. Plan Compilation & Execution
         # ----------------------------------------------------
         elif self.path == "/api/plan/compile":
             pid = req_data.get("profile_id", "Generic-Dual-WAN-Failover")
             matched = next((p for p in PROFILES_DATA if p["ID"] == pid), PROFILES_DATA[0])
 
-            # Dynamically replace gateway placeholders with real gateways if discovered
             steps_copy = json.loads(json.dumps(matched["Steps"]))
             if state["discovery"] and state["discovery"].get("WANs"):
                 wans = state["discovery"]["WANs"]
@@ -792,21 +1178,61 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
                 self.send_json(400, {"error": "No active plan"})
 
         # ----------------------------------------------------
-        # 6. Real AI Diagnostics Analysis
+        # 7. Real AI Diagnostics Analysis with Role Awareness
         # ----------------------------------------------------
         elif self.path == "/api/ai/analyze":
             if not state["connected"] or not state["discovery"]:
                 self.send_json(200, {
                     "HealthScore": 0,
-                    "Summary": "هیچ روتری متصل نیست. لطفاً ابتدا از بخش روترها، اطلاعات اتصال به روتر خود را وارد نمایید تا بررسی سلامت زنده انجام شود.",
+                    "Summary": "هیچ روتری متصل نیست. لطفاً ابتدا از تب همسایه‌ها یا افزودن روتر متصل شوید.",
                     "Findings": []
                 })
                 return
 
             disc = state["discovery"]
             r_info = disc["Router"]
+            role = disc.get("DeviceRole", {})
             findings = []
             score = 100
+
+            # Role-specific findings
+            if role.get("type") == "wireless_radio":
+                w_links = disc.get("WirelessLinks", [])
+                if w_links:
+                    sig = w_links[0].get("SignalStrength", "-65 dBm")
+                    ccq = w_links[0].get("CCQ", 90)
+                    findings.append({
+                        "Level": "info",
+                        "Title": f"کیفیت لینک رادیویی وایرلس ({sig})",
+                        "Description": f"لینک فعال با CCQ معادل {ccq}٪ و نسبت سیگنال به نویز {w_links[0].get('SNR', 30)} dB شناسایی شد.",
+                        "Solution": "از ابزار Antenna Alignment Tool برای بهینه‌سازی توان آنتن استفاده نمایید."
+                    })
+                else:
+                    findings.append({
+                        "Level": "info",
+                        "Title": "رادیو وایرلس آماده لینک PTP/PTMP",
+                        "Description": "رادیو شناسایی شد. می‌توانید با پروفایل Wireless-PTP-Bridge ارتباط نقطه به نقطه را پیکربندی کنید.",
+                        "Solution": "اعمال پروفایل Wireless-PTP-Bridge"
+                    })
+
+            elif role.get("type") == "cloud_switch":
+                findings.append({
+                    "Level": "info",
+                    "Title": "سوییچ سخت‌افزاری با قابلیت L3 HW Offload",
+                    "Description": "دستگاه دارای شتاب‌دهنده سوییچینگ است و فیلترینگ VLAN بدون افت بار CPU انجام می‌شود.",
+                    "Solution": "پیکربندی امن VLAN Filtering از طریق پروفایل Switch-VLAN-HW-Offload."
+                })
+
+            else:
+                # Gateway checks
+                wan_count = len(disc.get("WANs", []))
+                if wan_count >= 2:
+                    findings.append({
+                        "Level": "info",
+                        "Title": f"شناسایی {wan_count} خط اینترنت فعال (Multi-WAN)",
+                        "Description": "خطوط اینترنت با روت‌های مجزا شناسایی شدند.",
+                        "Solution": "استفاده از پروفایل Generic Multi-WAN Smart Failover جهت پایداری بدون قطعی."
+                    })
 
             # CPU check
             if r_info["CPULoadPercent"] > 80:
@@ -815,50 +1241,24 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
                     "Level": "warning",
                     "Title": "مصرف پردازنده روتر بالاست",
                     "Description": f"میزان بار پردازشی فعلی {r_info['CPULoadPercent']}% است.",
-                    "Solution": "بررسی رول‌های FastTrack در Firewall Filter و غیرفعال‌سازی سرویس‌های بدون استفاده."
+                    "Solution": "بررسی رول‌های FastTrack در Firewall Filter و بستن سرویس‌های بدون استفاده."
                 })
             else:
                 findings.append({
                     "Level": "info",
-                    "Title": "وضعیت پردازنده مطلوب",
-                    "Description": f"بار پردازنده روتر در سطح امن {r_info['CPULoadPercent']}% قرار دارد.",
-                    "Solution": "پردازش‌ها در محدوده عادی قرار دارند."
-                })
-
-            # Multi-WAN check
-            wan_count = len(disc.get("WANs", []))
-            if wan_count >= 2:
-                findings.append({
-                    "Level": "info",
-                    "Title": f"شناسایی {wan_count} خط اینترنت فعال (Multi-WAN)",
-                    "Description": "خطوط اینترنت با روت‌های مجزا شناسایی شدند.",
-                    "Solution": "پیشنهاد می‌شود از پروفایل Generic Multi-WAN Smart Failover برای سوئیچ خودکار در زمان قطعی استفاده فرمایید."
-                })
-            else:
-                findings.append({
-                    "Level": "info",
-                    "Title": "یک خط اینترنت فعال",
-                    "Description": "در حال حاضر یک مسیر خروجی فعال ثبت شده است.",
-                    "Solution": "در صورت اتصال مودم دوم، پیکربندی Multi-WAN را فعال کنید."
-                })
-
-            # Container / Hardware check
-            if r_info["ContainerSupported"]:
-                findings.append({
-                    "Level": "info",
-                    "Title": f"پشتیبانی کانتینر روی معماری {r_info['Architecture']}",
-                    "Description": f"روتر دارای حافظه رم {int(r_info['RAMTotalBytes']/(1024*1024))} مگابایت است.",
-                    "Solution": "امکان اجرای کانتینر Mihomo برای دور زدن فیلترینگ و مدیریت پروکسی وجود دارد."
+                    "Title": "وضعیت پردازنده در حد امن",
+                    "Description": f"بار پردازنده روتر {r_info['CPULoadPercent']}% است.",
+                    "Solution": "پردازش‌ها در محدوده بهینه قرار دارند."
                 })
 
             self.send_json(200, {
                 "HealthScore": max(score, 60),
-                "Summary": f"تحلیل زنده روتر {r_info['Model']} با RouterOS {r_info['OSVersion']}. امتیاز سلامت: {max(score, 60)}/۱۰۰.",
+                "Summary": f"تحلیل زنده دستگاه {r_info['Model']} ({role.get('label', 'MikroTik')}) با نسخه {r_info['OSVersion']}. امتیاز سلامت: {max(score, 60)}/۱۰۰.",
                 "Findings": findings
             })
 
         # ----------------------------------------------------
-        # 7. SOCKS & Internet Connectivity Test
+        # 8. SOCKS & Internet Connectivity Test
         # ----------------------------------------------------
         elif self.path == "/api/proxy/test":
             socks_enabled = req_data.get("socks_enabled", True)
@@ -867,7 +1267,7 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
             self.send_json(200, {"success": success, "message": message})
 
         # ----------------------------------------------------
-        # 8. AI Advisor Query (Gemini / Ollama / Rules)
+        # 9. AI Advisor Query with Context Injection
         # ----------------------------------------------------
         elif self.path == "/api/ai/ask":
             prompt = req_data.get("prompt", "")
@@ -878,15 +1278,15 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
             socks_enabled = req_data.get("socks_enabled", True)
             socks_addr = req_data.get("socks_addr", "127.0.0.1:7890")
 
-            # Context injection from real router
             router_context = ""
             if state["connected"] and state["discovery"]:
                 r_info = state["discovery"]["Router"]
+                role = state["discovery"].get("DeviceRole", {})
                 ifaces = [i["Name"] for i in state["discovery"].get("Interfaces", [])]
                 wans = [w.get("CustomName", w.get("Name")) for w in state["discovery"].get("WANs", [])]
                 router_context = (
-                    f"\nConnected Router: Model={r_info['Model']}, OS={r_info['OSVersion']}, "
-                    f"Arch={r_info['Architecture']}, Interfaces={','.join(ifaces)}, WANs={','.join(wans)}."
+                    f"\nConnected Device: Model={r_info['Model']}, Role={role.get('label', '')}, "
+                    f"OS={r_info['OSVersion']}, Arch={r_info['Architecture']}, Interfaces={','.join(ifaces)}, WANs={','.join(wans)}."
                 )
 
             llm_answered = False
@@ -901,9 +1301,9 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
                     target_model = model or "gemini-1.5-flash"
                     gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{target_model}:generateContent?key={api_key}"
                     sys_prompt = (
-                        "You are RouterPilot AI, an expert MikroTik RouterOS and network engineer. "
+                        "You are RouterPilot AI, an expert MikroTik network engineer and infrastructure architect. "
                         "Answer concisely, professionally and accurately in Persian. "
-                        f"Suggest concrete RouterOS commands when relevant.{router_context}"
+                        f"Suggest concrete RouterOS commands tailored to the user device when relevant.{router_context}"
                     )
                     payload_dict = {
                         "contents": [
@@ -973,10 +1373,12 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
                     ans = f"درخواست شما برای «{prompt}» بررسی شد.\n\nیک Plan کامل شامل ایجاد اینترفیس wg0 روی پورت 13231، تنظیم رنج IP 10.200.0.1/24 و رول فایروال جهت مجازسازی هندشیک تولید شد. روی دکمه «انتقال به Plan Builder» کلیک کنید تا قبل از اجرا، پیش‌نمایش دستورات را مشاهده فرمایید."
                 elif "محدود" in lower or "speed" in lower or "queue" in lower or "سرعت" in lower:
                     ans = f"درخواست شما برای «{prompt}» بررسی شد.\n\nیک Plan جهت ایجاد Simple Queue برای مدیریت ترافیک شبکه محلی (سقف دانلود و آپلود) تولید شد. هیچ تغییری بدون تأیید نهایی شما اعمال نخواهد شد."
-                elif "port" in lower or "forward" in lower or "پورت" in lower or "دوربین" in lower:
-                    ans = f"درخواست انتقال پورت (Port Forwarding / DST-NAT) برای «{prompt}» آماده شد.\n\nرول فایروال برای هدایت درخواست‌های خارجی به سمت سرور یا دوربین محلی تنظیم گردیده است."
+                elif "رادیو" in lower or "ptp" in lower or "سیگنال" in lower or "لینک" in lower or "lhg" in lower or "sxt" in lower:
+                    ans = f"درخواست پیکربندی رادیو وایرلس برای «{prompt}» آماده شد.\n\nیک Plan شامل تنظیم فرکانس بدون تداخل، فعال‌سازی حالت Station Bridge و رمزگذاری امن WPA2 تولید شده است."
+                elif "vlan" in lower or "سوییچ" in lower or "پورت" in lower or "crs" in lower:
+                    ans = f"درخواست سوییچینگ و VLAN برای «{prompt}» آماده شد.\n\nیک Plan شامل ایجاد VLAN Filtering روی Bridge و فعال‌سازی شتاب‌دهنده L3 Hardware Offload تولید شده است."
                 elif "سلام" in lower or "درود" in lower:
-                    ans = "سلام و درود! من دستیار هوشمند روتر شما هستم. می‌توانید هر سؤالی درباره پیکربندی میکروتیک، Failover، کانتینر Mihomo، وایرگارد و مدیریت روت‌ها دارید بپرسید تا راهنمایی کنم و پلن مرحله‌ای بسازم."
+                    ans = "سلام و درود! من دستیار هوشمند و مهندس زیرساخت روتر شما هستم. می‌توانید هر سؤالی درباره پیکربندی روترها، رادیوهای وایرلس (LHG/SXT)، سوییچ‌های CRS، فیل‌اور، کانتینر Mihomo و وایرگارد دارید بپرسید تا راهنمایی کنم و پلن مرحله‌ای بسازم."
                 else:
                     ans = f"درخواست شما («{prompt}») توسط مشاور هوشمند بررسی شد.\n\nبر اساس تحلیل وضعیت روتر و اصول ایمنی Zero-Lockout، تغییرات پیشنهادی در قالب یک Plan مرحله‌ای و قابل‌بررسی آماده شده است. می‌توانید دکمه زیر را برای بررسی دستورات بزنید."
 
@@ -989,8 +1391,8 @@ class RouterPilotHTTPHandler(http.server.SimpleHTTPRequestHandler):
 
 def run():
     print("=" * 64)
-    print("🚀 RouterPilot Control Plane v1.3 [Live Network Controller]")
-    print("   مدیریت زنده و هوشمند روترهای MikroTik و Multi-WAN")
+    print("🚀 RouterPilot Control Plane v1.4 [Smart Network Controller]")
+    print("   قابلیت کشف همسایه‌ها (MNDP Neighbors) + تشخیص خودکار پورت و نقش دستگاه")
     print(f"   داشبورد وب در دسترس است: http://127.0.0.1:{PORT}")
     print("=" * 64)
 

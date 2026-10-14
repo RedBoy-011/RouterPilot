@@ -40,6 +40,12 @@
         </a>
       </li>
       <li>
+        <a class="nav-item" data-tab="neighbors">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+          همسایه‌ها (Neighbors)
+        </a>
+      </li>
+      <li>
         <a class="nav-item" data-tab="discovery">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
           Discovery
@@ -185,6 +191,11 @@
           </div>
         </div>
 
+        <!-- Dynamic Device Role Banner (PTP Wireless Radio / Switch / Gateway) -->
+        <div id="card-device-role-panel" class="glass-panel" style="display:none; padding:18px 24px; margin-bottom:20px; border-radius:14px; border-right:4px solid var(--primary);">
+          <!-- Injected via JavaScript -->
+        </div>
+
         <!-- Row 2: Two Large Glass Panels -->
         <div class="dashboard-row-2">
           
@@ -314,6 +325,47 @@
 
         <div id="routers-fleet-grid" class="kpi-grid" style="grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));">
           <!-- Dynamically populated via renderRoutersFleet() -->
+        </div>
+      </section>
+
+      <!-- TAB 2.5: NEIGHBORS (MNDP L2 Discovery like Winbox) -->
+      <section id="tab-neighbors" class="tab-pane">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+          <div>
+            <h2>📡 کشف همسایه‌ها در شبکه (MNDP Neighbors)</h2>
+            <p style="color:var(--text-muted); font-size:0.9rem;">مشابه تب Neighbors در نرم‌افزار Winbox - کشف تجهیزات میکروتیک در لایه ۲ شبکه حتی بدون تنظیم IP</p>
+          </div>
+          <div style="display:flex; align-items:center; gap:12px;">
+            <span id="neighbors-scan-status" style="font-size:0.8rem; color:var(--text-muted);">آماده اسکن</span>
+            <button id="btn-scan-neighbors" class="btn btn-primary" onclick="triggerNeighborsScan()">
+              🔄 اسکن زنده شبکه (MNDP Scan)
+            </button>
+          </div>
+        </div>
+
+        <div class="data-table-container glass-panel">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>نوع دستگاه</th>
+                <th>نام هویت (Identity)</th>
+                <th>مدل سخت‌افزار</th>
+                <th>آدرس IP</th>
+                <th>مک‌آدرس (MAC)</th>
+                <th>اینترفیس</th>
+                <th>نسخه RouterOS</th>
+                <th>آپ‌تایم</th>
+                <th>عملیات</th>
+              </tr>
+            </thead>
+            <tbody id="neighbors-table-body">
+              <tr>
+                <td colspan="9" style="text-align:center; padding:32px; color:var(--text-muted);">
+                  در حال بارگذاری لیست همسایه‌ها... لطفاً دکمه «اسکن زنده شبکه» را بزنید.
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </section>
 
@@ -602,9 +654,20 @@
         <button type="button" class="btn btn-outline" style="padding:4px 10px; border-radius:50%;" onclick="closeAddRouterModal()">✕</button>
       </div>
       
-      <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:18px;">
-        اطلاعات روتر را وارد کنید. RouterPilot ابتدا قابلیت‌های سیستم و سازگاری سخت‌افزار را بررسی خواهد کرد.
+      <p style="font-size:0.85rem; color:var(--text-muted); margin-bottom:14px;">
+        اطلاعات روتر را وارد کنید. سیستم پورت‌های باز روتر را به صورت خودکار شناسایی و متصل می‌شود.
       </p>
+
+      <!-- Quick MNDP Select -->
+      <div style="background:rgba(56,189,248,0.06); border:1px solid rgba(56,189,248,0.25); border-radius:10px; padding:12px 14px; margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <span style="font-size:0.83rem; font-weight:600; color:#38bdf8;">📡 انتخاب سریع از همسایگان کشف‌شده (Neighbors):</span>
+          <button type="button" class="btn btn-outline" style="padding:2px 8px; font-size:0.75rem;" onclick="refreshModalNeighbors()">🔄 اسکن زنده</button>
+        </div>
+        <select id="modal-neighbor-select" onchange="applySelectedNeighborToModal()" style="width:100%; padding:8px 10px; background:#1e293b; border:1px solid var(--glass-border); border-radius:8px; color:#fff; font-size:0.85rem;">
+          <option value="">-- برای پر شدن خودکار، یک روتر کشف‌شده را انتخاب کنید --</option>
+        </select>
+      </div>
 
       <form id="form-add-router" onsubmit="event.preventDefault(); saveNewRouter();" style="display:flex; flex-direction:column; gap:14px;">
         <div>
@@ -616,7 +679,7 @@
           <div>
             <label style="font-size:0.82rem; color:var(--text-muted);">نوع سیستم‌عامل (OS Adapter):</label>
             <select id="new-router-os" style="width:100%; margin-top:4px; padding:10px; background:#1e293b; border:1px solid var(--glass-border); border-radius:8px; color:#fff;">
-              <option value="mikrotik_ros7" selected>MikroTik RouterOS 7 (REST API)</option>
+              <option value="mikrotik_ros7" selected>MikroTik RouterOS 7 (REST API / Winbox)</option>
               <option value="mikrotik_ros6">MikroTik RouterOS 6 (SSH/API)</option>
               <option value="openwrt">OpenWrt Linux</option>
               <option value="linux">Linux Router / VyOS</option>
@@ -630,8 +693,11 @@
 
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
           <div>
-            <label style="font-size:0.82rem; color:var(--text-muted);">پورت اتصال:</label>
-            <input id="new-router-port" type="number" placeholder="443 یا 80" value="443" style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+            <label style="font-size:0.82rem; color:var(--text-muted);">پورت ارتباطی (تشخیص هوشمند):</label>
+            <input id="new-router-port" type="text" placeholder="auto یا 80 / 443 / 8728" value="auto" style="width:100%; margin-top:4px; padding:10px; background:rgba(255,255,255,0.05); border:1px solid var(--glass-border); border-radius:8px; color:#fff;" dir="ltr">
+            <span style="display:block; font-size:0.72rem; color:var(--text-muted); margin-top:3px;">
+              💡 auto: بررسی خودکار پورت‌های 80، 443، 8728 و 8291
+            </span>
           </div>
           <div>
             <label style="font-size:0.82rem; color:var(--text-muted);">پروتکل ارتباطی:</label>

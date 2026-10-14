@@ -12,6 +12,7 @@ const state = {
   routers: [],
   wans: [],
   profiles: [],
+  neighbors: [],
   pollTimer: null,
 };
 
@@ -23,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
   loadInitialData();
   startHealthPolling();
   renderDynamicWANsTable();
+  loadNeighbors();
 });
 
 // Navigation Handling
@@ -49,6 +51,7 @@ function switchTab(tabId) {
   });
 
   if (tabId === 'routers') renderRoutersFleet();
+  if (tabId === 'neighbors') loadNeighbors();
   if (tabId === 'discovery') loadDiscoveryData();
   if (tabId === 'audit') loadAuditLogs();
 }
@@ -447,6 +450,166 @@ function renderDiscoveryView(disc) {
       }
     }
   }
+
+  // Render Specialized Device Role Panel (Wireless / Switch / Gateway)
+  renderDeviceRolePanel(disc);
+}
+
+// Render Dynamic Device Role Panel (Wireless Radio / Cloud Switch / Edge Gateway)
+function renderDeviceRolePanel(disc) {
+  const rolePanel = document.getElementById('card-device-role-panel');
+  if (!rolePanel) return;
+
+  if (!disc) {
+    rolePanel.style.display = 'none';
+    return;
+  }
+
+  const role = disc.DeviceRole || (disc.Router?.DeviceType ? {
+    type: disc.Router.DeviceType,
+    label: disc.Router.DeviceLabel,
+    icon: disc.Router.DeviceIcon,
+    color: disc.Router.DeviceColor,
+    description: 'دستگاه شناسایی‌شده میکروتیک',
+    recommended_profile: disc.RecommendedProfile,
+    tips: []
+  } : null);
+
+  if (!role) {
+    rolePanel.style.display = 'none';
+    return;
+  }
+
+  rolePanel.style.display = 'block';
+  rolePanel.style.borderColor = role.color || 'var(--primary)';
+
+  let specializedContent = '';
+
+  if (role.type === 'wireless_radio') {
+    const wLinks = disc.WirelessLinks || [];
+    specializedContent = `
+      <div style="margin-top:14px; background:rgba(0,0,0,0.25); border-radius:10px; padding:12px 16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <strong style="color:#fff; font-size:0.88rem;">📊 وضعیت لینک رادیویی وایرلس (PTP Signal):</strong>
+          <span class="status-badge" style="color:${role.color};">Wireless PTP Mode</span>
+        </div>
+        ${wLinks.length > 0 ? `
+          <div class="data-table-container">
+            <table class="data-table" style="font-size:0.82rem;">
+              <thead>
+                <tr>
+                  <th>اینترفیس</th>
+                  <th>سیگنال (RSSI)</th>
+                  <th>کیفیت (CCQ)</th>
+                  <th>SNR</th>
+                  <th>نرخ ارسال / دریافت</th>
+                  <th>وضعیت تراز آنتن</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${wLinks.map(wl => `
+                  <tr>
+                    <td class="font-mono">${wl.Interface}</td>
+                    <td class="font-mono" style="color:${parseInt(wl.SignalStrength) > -70 ? '#10b981' : '#f59e0b'}; font-weight:700;">${wl.SignalStrength}</td>
+                    <td class="font-mono" style="color:${wl.CCQ >= 80 ? '#10b981' : '#ef4444'}; font-weight:700;">${wl.CCQ}%</td>
+                    <td class="font-mono">${wl.SNR} dB</td>
+                    <td class="font-mono">${wl.TxRate} / ${wl.RxRate}</td>
+                    <td>
+                      <span class="status-badge" style="${wl.CCQ >= 85 ? 'color:#10b981;' : 'color:#f59e0b;'}">
+                        ${wl.CCQ >= 85 ? '✓ الاین عالی' : 'نیاز به تنظیم جهت'}
+                      </span>
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        ` : `
+          <p style="font-size:0.82rem; color:var(--text-muted); margin:0;">
+            اینترفیس رادیویی شناسایی شد اما در حال حاضر کلاینت PTP متصل نیست. برای لینک امن از پروتکل nv2 یا WPA3 استفاده فرمایید.
+          </p>
+        `}
+        <div style="margin-top:10px; display:flex; gap:10px; align-items:center;">
+          <button class="btn btn-primary" style="font-size:0.8rem; padding:6px 14px;" onclick="compileProfileToPlan('${role.recommended_profile || 'Wireless-PTP-Bridge'}')">
+            ⚡ تولید پلن استاندارد PTP Bridge امن (nv2 / WPA3)
+          </button>
+        </div>
+      </div>
+    `;
+  } else if (role.type === 'cloud_switch') {
+    const vlans = disc.SwitchVLANs || [];
+    specializedContent = `
+      <div style="margin-top:14px; background:rgba(0,0,0,0.25); border-radius:10px; padding:12px 16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <strong style="color:#fff; font-size:0.88rem;">🔀 سوئیچینگ سخت‌افزاری (VLAN Filtering & L3 HW Offload):</strong>
+          <span class="status-badge" style="color:${role.color};">Hardware Switch Chip</span>
+        </div>
+        ${vlans.length > 0 ? `
+          <div class="data-table-container">
+            <table class="data-table" style="font-size:0.82rem;">
+              <thead>
+                <tr>
+                  <th>VLAN ID</th>
+                  <th>Tagged Ports (Trunk)</th>
+                  <th>Untagged Ports (Access)</th>
+                  <th>پردازش سخت‌افزاری</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${vlans.map(v => `
+                  <tr>
+                    <td class="font-mono" style="font-weight:700; color:#38bdf8;">VLAN ${v.VlanIDs}</td>
+                    <td class="font-mono">${v.Tagged || '-'}</td>
+                    <td class="font-mono">${v.Untagged || '-'}</td>
+                    <td><span class="status-badge" style="color:#10b981;">L2/L3 HW Offload ✓</span></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        ` : `
+          <p style="font-size:0.82rem; color:var(--text-muted); margin:0;">
+            تراشه سوئیچ آماده سوئیچینگ خطی (Line Rate) است. برای جلوگیری از درگیر شدن CPU، فیلترینگ سخت‌افزاری VLAN فعال شود.
+          </p>
+        `}
+        <div style="margin-top:10px; display:flex; gap:10px; align-items:center;">
+          <button class="btn btn-primary" style="font-size:0.8rem; padding:6px 14px;" onclick="compileProfileToPlan('${role.recommended_profile || 'Switch-VLAN-HW-Offload'}')">
+            ⚡ اعمال VLAN Filtering سخت‌افزاری (بدون فشار به پردازنده)
+          </button>
+        </div>
+      </div>
+    `;
+  } else {
+    // gateway_router
+    specializedContent = `
+      <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <span class="status-badge" style="color:#10b981; background:rgba(16,185,129,0.12);">✓ مانیتورینگ Multi-WAN با پایش خطوط اینترنت</span>
+        <span class="status-badge" style="color:#38bdf8; background:rgba(56,189,248,0.12);">✓ فایروال ضدقفل (Zero-Lockout Safe)</span>
+        <span class="status-badge" style="color:#a855f7; background:rgba(168,85,247,0.12);">${disc.Container?.Supported ? '✓ پشتیبانی Mihomo Core' : 'فاقد کانتینر'}</span>
+      </div>
+    `;
+  }
+
+  rolePanel.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px;">
+      <div style="display:flex; gap:14px; align-items:flex-start;">
+        <div style="font-size:2rem; line-height:1; padding:8px; background:rgba(255,255,255,0.05); border-radius:10px;">${role.icon}</div>
+        <div>
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+            <h3 style="margin:0; font-size:1.1rem; color:#fff;">رده دستگاه: ${role.label}</h3>
+            <span class="status-badge" style="color:${role.color}; border:1px solid ${role.color};">${disc.Router?.Model || 'MikroTik'}</span>
+          </div>
+          <p style="font-size:0.84rem; color:var(--text-muted); margin:0;">${role.description}</p>
+        </div>
+      </div>
+    </div>
+    ${specializedContent}
+    ${role.tips && role.tips.length > 0 ? `
+      <div style="margin-top:10px; font-size:0.78rem; color:var(--text-muted);">
+        💡 <strong>توصیه‌های هوشمند مهندس زیرساخت:</strong> ${role.tips.join(' • ')}
+      </div>
+    ` : ''}
+  `;
 }
 
 // Compile Profile into Plan
@@ -1058,8 +1221,11 @@ function openAddRouterModal() {
   const modal = document.getElementById('modal-add-router');
   if (!modal) return;
   document.getElementById('form-add-router')?.reset();
+  const portInput = document.getElementById('new-router-port');
+  if (portInput) portInput.value = 'auto';
   const msgEl = document.getElementById('add-router-msg');
   if (msgEl) msgEl.style.display = 'none';
+  updateModalNeighborsDropdown(state.neighbors);
   modal.classList.add('show');
 }
 
@@ -1072,7 +1238,8 @@ async function saveNewRouter() {
   const name = document.getElementById('new-router-name')?.value.trim();
   const os = document.getElementById('new-router-os')?.value || 'mikrotik_ros7';
   const host = document.getElementById('new-router-host')?.value.trim();
-  const port = parseInt(document.getElementById('new-router-port')?.value || '443', 10);
+  const portRaw = document.getElementById('new-router-port')?.value.trim() || 'auto';
+  const port = (portRaw.toLowerCase() === 'auto' || portRaw === '') ? 'auto' : (parseInt(portRaw, 10) || 80);
   const authtype = document.getElementById('new-router-authtype')?.value || 'password';
   const user = document.getElementById('new-router-user')?.value.trim() || 'admin';
   const pass = document.getElementById('new-router-pass')?.value || '';
@@ -1086,12 +1253,12 @@ async function saveNewRouter() {
 
   // Show loading indicator
   if (submitBtn) {
-    submitBtn.innerText = 'در حال تست و اتصال به روتر... ⏳';
+    submitBtn.innerText = 'در حال مذاکره پورت و اتصال به روتر... ⏳';
     submitBtn.disabled = true;
   }
   if (msgEl) {
     msgEl.style.display = 'block';
-    msgEl.innerHTML = '<span style="color:var(--primary);">در حال آزمون ارتباط REST API با روتر... لطفاً شکیبا باشید.</span>';
+    msgEl.innerHTML = '<span style="color:var(--primary);">در حال بررسی خودکار پورت‌های باز (80، 443، 8728، 8291)... لطفاً شکیبا باشید.</span>';
   }
 
   try {
@@ -1112,17 +1279,26 @@ async function saveNewRouter() {
 
     if (res.ok && data.success) {
       const newId = 'r-' + Date.now();
+      const workingPort = data.working_port || (port === 'auto' ? 80 : port);
+      const proto = data.protocol || 'REST API';
+      const role = data.device_role || {};
+
       const newRouter = {
         id: newId,
         name: name || data.discovery?.Router?.Model || host,
         os,
         host,
-        port,
+        port: workingPort,
         user,
         password: pass,
         auth: authtype,
         status: 'online',
         is_active: true,
+        protocol: proto,
+        model: data.discovery?.Router?.Model || 'MikroTik',
+        device_type: role.type || 'gateway_router',
+        device_label: role.label || 'روتر لبه',
+        device_icon: role.icon || '📶',
         wan_count: data.discovery?.WANs?.length || 1,
         container_supported: data.discovery?.Container?.Supported || false
       };
@@ -1141,7 +1317,7 @@ async function saveNewRouter() {
       renderDiscoveryView(data.discovery);
       updateConnectionBadge(true);
 
-      alert(`✅ اتصال موفق به روتر «${newRouter.name}» با موفقیت برقرار شد! مشخصات زنده بارگذاری شدند.`);
+      alert(`✅ اتصال موفق به روتر «${newRouter.name}» برقرار شد!\n• پورت فعال: ${workingPort} (${proto})\n• نوع دستگاه: ${role.label || 'روتر میکروتیک'}\n• معماری: ${data.discovery?.Router?.Architecture || '-'}`);
     } else {
       if (msgEl) {
         msgEl.innerHTML = `<span style="color:#ef4444; font-weight:600;">❌ ${data.error || 'خطا در برقراری ارتباط با روتر'}</span>`;
@@ -1181,4 +1357,165 @@ function deleteRouter(routerId) {
   localStorage.setItem('rp_routers', JSON.stringify(state.routers));
   renderRouterDropdown();
   renderRoutersFleet();
+}
+
+// ==========================================
+// MNDP Neighbors Discovery (Winbox-like L2)
+// ==========================================
+
+async function loadNeighbors() {
+  const tbody = document.getElementById('neighbors-table-body');
+  const statusEl = document.getElementById('neighbors-scan-status');
+  try {
+    const res = await fetch('/api/neighbors');
+    const data = await res.json();
+    state.neighbors = data.neighbors || [];
+    renderNeighborsTable(state.neighbors);
+    updateModalNeighborsDropdown(state.neighbors);
+    if (statusEl) {
+      statusEl.innerText = `${state.neighbors.length} دستگاه در شبکه شناسایی شد`;
+    }
+  } catch (e) {
+    console.error('Failed to load neighbors:', e);
+  }
+}
+
+async function triggerNeighborsScan() {
+  const btn = document.getElementById('btn-scan-neighbors');
+  const statusEl = document.getElementById('neighbors-scan-status');
+  const tbody = document.getElementById('neighbors-table-body');
+  
+  if (btn) {
+    btn.disabled = true;
+    btn.innerText = '📡 در حال اسکن MNDP لایه ۲...';
+  }
+  if (statusEl) statusEl.innerText = 'ارسال پکت‌های Broadcast روی پورت UDP 5678...';
+  if (tbody) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="9" style="text-align:center; padding:32px; color:var(--primary);">
+          ⏳ در حال گوش دادن به پکت‌های MNDP (MikroTik Neighbor Discovery) و جدول ARP شبکه...
+        </td>
+      </tr>
+    `;
+  }
+
+  try {
+    const res = await fetch('/api/neighbors/scan', { method: 'POST' });
+    const data = await res.json();
+    state.neighbors = data.neighbors || [];
+    renderNeighborsTable(state.neighbors);
+    updateModalNeighborsDropdown(state.neighbors);
+    if (statusEl) {
+      statusEl.innerText = `اسکن پایان یافت: ${state.neighbors.length} دستگاه در شبکه یافت شد`;
+    }
+  } catch (err) {
+    alert('خطا در اسکن همسایه‌ها: ' + err.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = '🔄 اسکن زنده شبکه (MNDP Scan)';
+    }
+  }
+}
+
+function renderNeighborsTable(neighbors) {
+  const tbody = document.getElementById('neighbors-table-body');
+  if (!tbody) return;
+
+  if (!neighbors || neighbors.length === 0) {
+    tbody.innerHTML = `
+      <tr>
+        <td colspan="9" style="text-align:center; padding:36px; color:var(--text-muted);">
+          روتر یا تجهیزاتی در شبکه لایه ۲ کشف نشد.<br>
+          <small style="color:var(--text-muted); margin-top:8px; display:inline-block;">
+            مطمئن شوید روتر روشن است و کامپیوتر شما در همان کارت شبکه / ساب‌نت متصل است.
+          </small>
+        </td>
+      </tr>
+    `;
+    return;
+  }
+
+  tbody.innerHTML = neighbors.map((n) => {
+    const roleIcon = n.device_type === 'wireless_radio' ? '📡' : (n.device_type === 'cloud_switch' ? '🔀' : '📶');
+    const roleColor = n.device_color || 'var(--primary)';
+    const ipDisplay = n.ip && n.ip !== '0.0.0.0' ? n.ip : '<span style="color:#f59e0b;">(بدون IP / L2)</span>';
+    return `
+      <tr>
+        <td>
+          <span style="color:${roleColor}; font-weight:600; display:flex; align-items:center; gap:6px;">
+            <span>${roleIcon}</span>
+            <span>${n.device_label || 'روتر میکروتیک'}</span>
+          </span>
+        </td>
+        <td><strong style="color:#fff;">${n.identity || 'MikroTik'}</strong></td>
+        <td class="font-mono">${n.model || '-'}</td>
+        <td class="font-mono" style="font-weight:700; color:#38bdf8;">${ipDisplay}</td>
+        <td class="font-mono" style="color:var(--text-muted); font-size:0.82rem;">${n.mac || '-'}</td>
+        <td class="font-mono">${n.interface || '-'}</td>
+        <td class="font-mono">${n.version || '-'}</td>
+        <td style="font-size:0.82rem; color:var(--text-muted);">${n.uptime || '-'}</td>
+        <td>
+          <button class="btn btn-primary" style="padding:4px 10px; font-size:0.78rem;" onclick="connectToDiscoveredNeighbor('${n.ip}', '${n.mac}', '${n.identity}', '${n.model}', '${n.device_type}')">
+            🔌 اتصال سریع
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+}
+
+function updateModalNeighborsDropdown(neighbors) {
+  const sel = document.getElementById('modal-neighbor-select');
+  if (!sel) return;
+  if (!neighbors || neighbors.length === 0) {
+    sel.innerHTML = '<option value="">-- دستگاهی هنوز کشف نشده است (دکمه اسکن زنده را بزنید) --</option>';
+    return;
+  }
+  sel.innerHTML = '<option value="">-- برای پر شدن خودکار، یک روتر کشف‌شده را انتخاب کنید --</option>' +
+    neighbors.map((n, idx) => {
+      const ip = (n.ip && n.ip !== '0.0.0.0') ? n.ip : '';
+      return `<option value="${idx}">${n.identity} (${n.model}) - ${ip || n.mac} [${n.device_label || 'MikroTik'}]</option>`;
+    }).join('');
+}
+
+function refreshModalNeighbors() {
+  triggerNeighborsScan();
+}
+
+function applySelectedNeighborToModal() {
+  const sel = document.getElementById('modal-neighbor-select');
+  const val = sel?.value;
+  if (val === '' || val === undefined) return;
+  const n = state.neighbors[parseInt(val, 10)];
+  if (!n) return;
+
+  const nameInput = document.getElementById('new-router-name');
+  const hostInput = document.getElementById('new-router-host');
+  const portInput = document.getElementById('new-router-port');
+
+  if (nameInput) nameInput.value = n.identity ? `${n.identity} (${n.model})` : n.model;
+  if (hostInput && n.ip && n.ip !== '0.0.0.0') {
+    hostInput.value = n.ip;
+  }
+  if (portInput) {
+    portInput.value = 'auto';
+  }
+}
+
+function connectToDiscoveredNeighbor(ip, mac, identity, model, devType) {
+  openAddRouterModal();
+  const nameInput = document.getElementById('new-router-name');
+  const hostInput = document.getElementById('new-router-host');
+  const portInput = document.getElementById('new-router-port');
+
+  if (nameInput) nameInput.value = identity ? `${identity} (${model})` : model;
+  if (hostInput) hostInput.value = (ip && ip !== '0.0.0.0') ? ip : '';
+  if (portInput) portInput.value = 'auto';
+
+  if (!ip || ip === '0.0.0.0') {
+    alert(`دستگاه «${identity}» با مک‌آدرس ${mac} کشف شد اما در حال حاضر فاقد آدرس IP در این ساب‌نت است.\nلطفاً IP موقت به آن اختصاص دهید یا اتصال را با پورت 80 آزمون فرمایید.`);
+    hostInput?.focus();
+  }
 }
