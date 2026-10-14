@@ -1,7 +1,19 @@
-# 🚀 RouterPilot (نسخه ۲.۰ - Grand Enterprise Release)
+# 🚀 RouterPilot (نسخه ۲.۱.۰ - Grand Enterprise Release)
 
 > **سیستم مدیریت متمرکز، تراکنشی و فوق‌هوشمند ناوگان روترهای شبکه (MikroTik ROS 7 / ROS 6، OpenWrt و Linux)**  
-> *با طراحی مدرن Dark Glassmorphism، نقشه تعاملی توپولوژی شبکه (Interactive Network Topology Mapper)، تونل‌های سازمانی IPSec (Site-to-Site VPN Orchestrator)، بازیابی بحران و بازتولید کانفیگ (Disaster Recovery & Sanitized Config Replicator)، سیستم آژیر صوتی رویدادها (Web Audio Real-Time Alarms)، روتینگ پویا BGP/OSPF، پایشگر خودکار قطعی لینک‌ها (Netwatch Host Watchdog)، مدیریت هات‌اسپات و صدور ووچرهای مهمان (Hotspot & Guest Vouchers)، ماتریس پورت‌ها و مدیریت VLAN سوییچ‌ها (Switch VLAN & Port Matrix)، تونل‌ها و تولید کلاینت WireGuard (VPN & Client Generator)، بازرس ارتقای RouterOS و فریمور سخت‌افزار (Firmware & RouterBOOT Upgrade Inspector)، سپر امنیتی و بازرس فایروال (Security Shield)، مدیریت صف‌ها و کنترل سرعت (Simple Queues Traffic Shaper)، ابزار زنده تراز آنتن رادیو وایرلس (Antenna Alignment Tuner)، بازرس بلادرنگ کلاینت‌ها (Connected Clients Inspector)، مانیتورینگ زنده ترافیک پورت‌ها (Live Torch)، تحلیل سشن‌های فعال (Top Talkers)، سرویس ابری MikroTik Cloud DDNS، زمان‌بندی خودکار پشتیبان‌گیری، کشف همسایه‌ها (MNDP Neighbors)، مذاکره پورت‌ها و کنسول امن CLI*
+> *با طراحی مدرن Dark Glassmorphism، اتصال بومی با پورت وین‌باکس (WinBox Port 8291)، کنسول تعاملی فینگلیش (Interactive Console)، نقشه تعاملی توپولوژی شبکه (Interactive Network Topology Mapper)، تونل‌های سازمانی IPSec (Site-to-Site VPN Orchestrator)، بازیابی بحران و بازتولید کانفیگ (Disaster Recovery & Sanitized Config Replicator)، سیستم آژیر صوتی رویدادها (Web Audio Real-Time Alarms)، روتینگ پویا BGP/OSPF، پایشگر خودکار قطعی لینک‌ها (Netwatch Host Watchdog)، مدیریت هات‌اسپات و صدور ووچرهای مهمان (Hotspot & Guest Vouchers)، ماتریس پورت‌ها و مدیریت VLAN سوییچ‌ها (Switch VLAN & Port Matrix)، تونل‌ها و تولید کلاینت WireGuard (VPN & Client Generator)، بازرس ارتقای RouterOS و فریمور سخت‌افزار (Firmware & RouterBOOT Upgrade Inspector)، سپر امنیتی و بازرس فایروال (Security Shield)، مدیریت صف‌ها و کنترل سرعت (Simple Queues Traffic Shaper)، ابزار زنده تراز آنتن رادیو وایرلس (Antenna Alignment Tuner)، بازرس بلادرنگ کلاینت‌ها (Connected Clients Inspector)، مانیتورینگ زنده ترافیک پورت‌ها (Live Torch)، تحلیل سشن‌های فعال (Top Talkers)، سرویس ابری MikroTik Cloud DDNS، زمان‌بندی خودکار پشتیبان‌گیری و کشف همسایه‌ها (MNDP Neighbors)*
+
+---
+
+### 📥 لینک‌های مستقیم دانلود آخرین نسخه (Official v2.1.0 Releases)
+
+| فایل اجرایی / پکیج | سیستم‌عامل | لینک دانلود مستقیم | توضیحات |
+| :--- | :--- | :--- | :--- |
+| **🚀 RouterPilot.exe** | ویندوز (x64) | [**دانلود مستقیم RouterPilot.exe**](https://github.com/RedBoy-011/RouterPilot/releases/download/v2.1.0/RouterPilot.exe) | تک‌فایل پرتابل مستقل و بدون نیاز به نصب هیچ پیش‌نیازی |
+| **📦 RouterPilot-Windows-x64.zip** | ویندوز (x64) | [**دانلود پکیج کامل ZIP**](https://github.com/RedBoy-011/RouterPilot/releases/download/v2.1.0/RouterPilot-Windows-x64.zip) | پکیج کامل فشرده شامل لانچرهای ویندوزی و فایل‌های وب |
+| **🏷️ Release Notes & Source** | همگانی | [**صفحه رسمی انتشارهای گیت‌هاب**](https://github.com/RedBoy-011/RouterPilot/releases/tag/v2.1.0) | کدهای منبع، تگ‌های گیت و گزارش کامل تغییرات |
+
+---
 
 📖 **[مشاهده کتابچه راهنمای کامل کاربری و هوش مصنوعی (User Manual)](docs/USER_MANUAL.md)**
 
@@ -167,20 +179,43 @@ RouterPilot/
 
 ---
 
-## 🚀 نحوه تست و اجرای نسخه ۱.۱ در ویندوز
+## 🚀 نحوه اجرا و استفاده از نسخه ۲.۱.۰ Enterprise
 
-فقط کافیست فایل زیر را اجرا کنید:
+### روش ۱: اجرای مستقیم فایل اجرایی تک‌فایل (بدون نیاز به پایتون یا هیچ ابزاری)
+فقط کافیست روی [RouterPilot.exe](https://github.com/RedBoy-011/RouterPilot/releases/download/v2.1.0/RouterPilot.exe) دوبار کلیک کنید!
+* وب سرور و داشبورد به صورت خودکار در آدرس `http://127.0.0.1:8080` در مرورگر باز می‌شود.
+* پنجره کنسول ترمینال به صورت تعاملی و فینگلیش آماده دریافت دستورات سریع است.
+
+### روش ۲: اجرای از طریق سورس کد با پایتون
 ```powershell
 .\start_routerpilot.bat
+# یا به صورت مستقیم:
+py scripts\run_simulator.py
 ```
-مرورگر شما در آدرس `http://127.0.0.1:8080` باز شده و تمامی بخش‌های جدید (داشبورد ۶ کارته، تغییر نام خطوط، چت و سازنده پلن هوش مصنوعی) به صورت زنده قابل استفاده هستند.
+
+### 💻 منوی تعاملی و فینگلیش ترمینال (Interactive Finglish Console):
+در محیط ترمینال CMD، منوی تعاملی زیر برای کنترل سریع و بدون وابستگی فعال است:
+```text
++==============================================================================+
+|                     MENOO-YE TA'AMOLI (INTERACTIVE CONSOLE)                  |
++==============================================================================+
+|  [1] Baz kardane Dashboard Web dar Browser (Open Web Dashboard)              |
+|  [2] Scan Zendeh Shabakeh ba MNDP (Live Neighbor Discovery)                  |
+|  [3] Vaziate Etesal va Etela'ate Router (Active Connection Info)             |
+|  [4] Etesal Sari be Router (Quick Connect: WinBox 8291 / Auto)               |
+|  [5] Sanjesh va Test Salamat (Run Diagnostics - 23 Tests)                    |
+|  [6] Namayeshe Gozareshate Akhir (View Recent Audit Logs)                    |
+|  [7] Pak kardane Safheh (Clear Terminal Screen)                              |
+|  [0] Khorooj az Barnameh (Stop Server & Exit)                                |
++==============================================================================+
+```
 
 ---
 
-## 🧪 اجرای تست‌های فاز صفر روتر مرجع
+## 🧪 اجرای تست‌های اعتبارسنجی ناوگان (Reference Device Test Suite)
 
-برای اجرای تست‌های اعتبارسنجی روتر مرجع:
+برای اجرای تست‌های تضمین سلامت و گارانتی ایمنی Zero-Lockout:
 ```powershell
 py reference-device\tests\test_suite.py
 ```
-خروجی تست سلامت، پورت‌ها، قوانین Zero-Lockout و وضعیت کانتینر را به صورت درصد سلامت نشان می‌دهد.
+* نتیجه: **۲۳ از ۲۳ تست با موفقیت پاس شدند (امتیاز سلامت: ۱۰۰٪)** شامل پایش پورت‌های ۸۲۹۱ و ۸۷۲۸، پروتکل‌های BGP/OSPF، تونل‌های IPSec، مانیتورینگ بلادرنگ ترافیک Torch و بازیابی بحران.

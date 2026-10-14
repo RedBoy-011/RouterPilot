@@ -1,13 +1,13 @@
 @echo off
 chcp 65001 >nul
-title RouterPilot Control Plane v2.0 Enterprise [Windows Launcher]
+title RouterPilot Control Plane v2.1.0 Enterprise [Interactive Console]
 cd /d "%~dp0"
 
 echo +==============================================================================+
-echo ^|             RouterPilot Control Plane v2.0 Enterprise Launcher               ^|
+echo ^|             RouterPilot Control Plane v2.1.0 Enterprise Launcher             ^|
 echo +==============================================================================+
 echo ^| [*] Vaziat: Dar hale rah-andazi Control Plane va Web Dashboard...            ^|
-echo ^| [*] Port: 8080 ^| MNDP L2 Discovery: Fa'al                                    ^|
+echo ^| [*] Port: 8080 ^| MNDP L2 Discovery: Fa'al ^| Winbox 8291: Amadeh             ^|
 echo +==============================================================================+
 echo.
 
